@@ -1,6 +1,6 @@
 # Manual de usuario
 
-Versión: 0.1 (borrador; se completa cuando la interfaz web esté implementada)
+Versión: 0.2 (borrador; se completa cuando la interfaz web esté implementada)
 
 ## 1. Contenido de la caja
 
@@ -18,12 +18,13 @@ Versión: 0.1 (borrador; se completa cuando la interfaz web esté implementada)
 | Apagado | Fijo | Falla del sensor | Revisar que el sensor esté conectado; si sigue, contactar soporte |
 | Apagado | Doble destello | El equipo está iniciando o el sistema interno no responde | Esperar 2 minutos; si sigue, desconectar y volver a conectar la alimentación |
 | Parpadeo rápido | Parpadeo rápido | Se está restableciendo de fábrica | Esperar |
+| Apagado | 3 destellos | Se pidió el restablecimiento, pero el sistema interno no respondió | Desconectar y volver a conectar la alimentación, esperar 2 minutos y repetir la sección 5 |
 
 ## 3. Configuración inicial (bring-up)
 
 1. Conecte el cable Ethernet al equipo y a su router o computador.
 2. Conecte la alimentación USB. Espere a que el LED verde parpadee despacio (aprox. 1 minuto).
-3. En un navegador, abra la dirección `http://<por definir>`.
+3. En un navegador, abra la dirección impresa en la etiqueta del equipo (`http://<por definir>`, ver RF-46).
 4. Complete el formulario:
    - **Nombre del equipo:** por ejemplo, "Laboratorio 3".
    - **Contraseña de administrador:** la necesitará para cambiar la configuración más adelante.
@@ -37,13 +38,14 @@ Versión: 0.1 (borrador; se completa cuando la interfaz web esté implementada)
 - **Inicio:** temperatura y humedad actuales.
 - **Historial:** gráfica de las últimas horas y días.
 - **Diagnóstico:** estado interno del equipo (para soporte técnico).
+- **Ajustes:** cambiar el nombre y los umbrales. Pide la contraseña de administrador.
 
 ## 5. Restablecer de fábrica
 
 Borra **toda** la configuración y el historial.
 
 1. Mantenga presionado el botón de reset durante **10 segundos**. Los dos LED parpadean rápido.
-2. Suelte el botón. El equipo se reinicia y el LED verde vuelve a parpadear despacio.
+2. Suelte el botón. En menos de 30 segundos el LED verde vuelve a parpadear despacio: el equipo está otra vez en modo de configuración. No hace falta desconectarlo.
 3. Configure el equipo de nuevo (sección 3).
 
 Si suelta el botón antes de 10 segundos, no se borra nada.

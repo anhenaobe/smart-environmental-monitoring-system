@@ -1,6 +1,6 @@
 # Protocolo de comunicación UART STM32 ↔ Milk-V Duo S
 
-Versión: 0.1 (borrador)
+Versión: 0.2 (borrador). Cambios frente a 0.1: `STA` agrega `lazo_max_us` y `pila_libre_b` (RF-07). Los checksums de todos los ejemplos se recalcularon con un script.
 
 Este documento es la única definición válida del protocolo. Cualquier cambio en el firmware o en el servicio Linux debe reflejarse primero aquí, y lo acuerdan quien implementa el firmware y quien implementa el servicio Linux.
 
@@ -74,7 +74,7 @@ Si `estado ≠ 0`, `temp` y `hr` van vacíos: `$ENV,00000043,,,1*CS`.
 ### `STA`: estado del microcontrolador (cada 10 s y al arrancar)
 
 ```
-$STA,<uptime_s>,<err_i2c>,<causa_reset>,<fw>*<CS>
+$STA,<uptime_s>,<err_i2c>,<causa_reset>,<fw>,<lazo_max_us>,<pila_libre_b>*<CS>
 ```
 
 | Campo | Descripción |
@@ -83,6 +83,10 @@ $STA,<uptime_s>,<err_i2c>,<causa_reset>,<fw>*<CS>
 | `err_i2c` | Errores I²C acumulados desde el arranque |
 | `causa_reset` | Leída de `RCC_CSR`: 0 = encendido/BOR, 1 = pin NRST, 2 = watchdog IWDG, 3 = software, 4 = otra |
 | `fw` | Versión del firmware, `MAJ.MIN.PAT` |
+| `lazo_max_us` | 5 dígitos: duración máxima de una iteración del lazo principal desde el último `STA`, en µs (medida con un temporizador o DWT `CYCCNT`); se satura en 99999. Se reinicia tras cada envío. *(v0.2, RF-07)* |
+| `pila_libre_b` | 5 dígitos: bytes de pila nunca usados desde el arranque (la pila se rellena con un patrón al iniciar y se busca el primer byte modificado). *(v0.2, RF-07)* |
+
+Longitud típica: 40 bytes, dentro del límite de 64.
 
 ### `BTN`: solicitud de factory reset
 
@@ -134,7 +138,7 @@ Prioridad cuando coinciden varios estados: reset > falla de sensor > sin latido 
 ## 6. Ejemplos de sesión
 
 ```
-STM32 → $STA,00000003,0,0,0.1.0*74
+STM32 → $STA,00000003,0,0,0.1.0,00850,02048*77
 STM32 → $ENV,00000000,+02450,05310,0*42
 Linux → $SYS,1*44
 STM32 → $ENV,00000001,+02451,05308,0*4B
