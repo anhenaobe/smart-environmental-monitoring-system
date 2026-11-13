@@ -1,6 +1,6 @@
 # Interfaces entre subsistemas
 
-Versión: 0.1 (borrador)
+Versión: 0.2 (borrador)
 
 Estos contratos separan el trabajo de cada rol. Para cambiar uno se necesita el acuerdo de los dos roles que conecta.
 
@@ -24,17 +24,17 @@ Definido en [protocolo-uart.md](protocolo-uart.md). Como Andrew implementa los d
   "estado_sistema": 1,
   "medicion": { "valida": true, "temp_c": 24.50, "hr": 53.10, "estado_sensor": 0, "seq": 42 },
   "uart": { "tramas_ok": 1200, "err_checksum": 0, "err_trama": 0, "desconocidas": 0, "perdidas": 0, "seg_desde_ultima": 0 },
-  "stm32": { "uptime_s": 3600, "err_i2c": 0, "causa_reset": 0, "fw": "0.1.0" }
+  "stm32": { "uptime_s": 3600, "err_i2c": 0, "causa_reset": 0, "fw": "0.1.0", "lazo_max_us": 850, "pila_libre_b": 2048 }
 }
 ```
 
 - `estado_sistema`: mismos valores que `SYS` (0 bring-up, 1 normal, 2 alarma, 3 reset en curso).
 - Cuando `medicion.valida = false`, `temp_c` y `hr` valen `null`.
-- El registro histórico (Integrante 2) lee este archivo cada segundo y agrega por minuto.
+- El registro histórico (Mateo) lee este archivo cada segundo y agrega por minuto.
 
 ## 3. Configuración: web → `envmond`
 
-Archivo `/etc/envmon/config`, en formato `clave=valor`, una entrada por línea. Lo escribe **solo** el formulario de bring-up, de forma atómica.
+Archivo `/etc/envmon/config`, en formato `clave=valor`, una entrada por línea. Lo escriben **solo** el formulario de bring-up y la página de ajustes (RF-32, con contraseña), siempre de forma atómica.
 
 ```
 nombre=Laboratorio 3
@@ -64,5 +64,4 @@ El servicio web detecta el modo bring-up porque falta el archivo de configuraci�
 
 ## 5. Pendientes
 
-- Hash de la contraseña: algoritmo y biblioteca (en C, sin dependencias pesadas).
-- Mecanismo exacto de aviso web → `envmond` (`SIGHUP` con PID en `/run/envmon/envmond.pid`, o un socket).
+Ver [requerimientos.md §6](requerimientos.md#6-decisiones-abiertas): hash de la contraseña (`crypt()` SHA-512 propuesto) y aviso web → `envmond` (innecesario si el servidor HTTP corre dentro de `envmond`).

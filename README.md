@@ -63,4 +63,4 @@ El hardware se valida antes de construir el resto del software:
 
 ## Estado
 
-🚧 En definición. Ver las decisiones abiertas en [requerimientos.md](docs/requerimientos.md#4-decisiones-abiertas).
+🚧 En definición (documentación v0.2). Ver las decisiones abiertas en [requerimientos.md](docs/requerimientos.md#6-decisiones-abiertas).
