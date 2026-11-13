@@ -1,0 +1,21 @@
+# Build
+build/
+*.o
+*.a
+*.elf
+*.bin
+*.hex
+*.map
+linux/envmon
+linux/envmon-host
+
+# STM32CubeIDE
+firmware/**/Debug/
+firmware/**/Release/
+firmware/**/.settings/
+
+# Editores / SO
+.vscode/
+.idea/
+.DS_Store
+*.swp
