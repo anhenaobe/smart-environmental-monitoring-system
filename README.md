@@ -46,6 +46,7 @@ hardware/   Conexionado, lista de materiales, fotos y carcasa
 - [Protocolo UART](docs/protocolo-uart.md)
 - [Matriz de verificación](docs/matriz-verificacion.md)
 - [Manual de usuario](docs/manual-usuario.md)
+- [Interfaces entre subsistemas](docs/interfaces.md)
 - [Roles y aportes](docs/roles.md)
 - [Declaración de uso de IA](docs/uso-ia.md)
 
