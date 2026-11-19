@@ -32,7 +32,7 @@ Monitor autónomo de temperatura y humedad relativa con **STM32 (NUCLEO-L432KC)*
 ## Estructura del repositorio
 
 ```
-docs/       Documentación: requerimientos, protocolo, manual, matriz de verificación, roles, uso de IA
+docs/       Documentación: descripción, requerimientos, arquitectura, matriz, protocolo, manual, roles, uso de IA
 firmware/   Firmware del STM32 (NUCLEO-L432KC)
 linux/      Servicio en C para la Milk-V (src/, tests/)
 web/        Páginas estáticas de la interfaz web
@@ -41,14 +41,22 @@ hardware/   Conexionado, lista de materiales, fotos y carcasa
 
 ## Documentación
 
-- [Descripción del sistema](docs/descripcion-sistema.md)
-- [Análisis de requerimientos](docs/requerimientos.md)
-- [Protocolo UART](docs/protocolo-uart.md)
-- [Matriz de verificación](docs/matriz-verificacion.md)
-- [Manual de usuario](docs/manual-usuario.md)
-- [Interfaces entre subsistemas](docs/interfaces.md)
-- [Roles y aportes](docs/roles.md)
-- [Declaración de uso de IA](docs/uso-ia.md)
+Índice completo y orden de lectura en [docs/README.md](docs/README.md). Los cuatro documentos principales:
+
+1. [Descripción del sistema](docs/descripcion-sistema.md): qué problema resuelve y para quién.
+2. [Análisis de requerimientos](docs/requerimientos.md): qué debe hacer, con criterios medibles.
+3. [Arquitectura de la solución](docs/arquitectura.md): cómo está construido.
+4. [Matriz de verificación](docs/matriz-verificacion.md): cómo se demuestra que cumple.
+
+## Equipo
+
+| Integrante | Rol |
+|---|---|
+| Andrew | Firmware del STM32, servicio de adquisición `envmond` e integración de hardware |
+| Mateo | Datos e interfaz web; coordinación de la matriz y de la declaración de uso de IA |
+| Juan Fernando | Instrumentación y herramientas de verificación; carcasa, manual, video y pruebas con usuarios |
+
+Detalle en [roles.md](docs/roles.md).
 
 ## Plan de trabajo
 
@@ -63,4 +71,4 @@ El hardware se valida antes de construir el resto del software:
 
 ## Estado
 
-🚧 En definición (documentación v0.2). Ver las decisiones abiertas en [requerimientos.md](docs/requerimientos.md#6-decisiones-abiertas).
+🚧 En definición (documentación v0.3: se agrega la arquitectura y el equipo queda de tres integrantes). Ver las decisiones abiertas en [requerimientos.md](docs/requerimientos.md#6-decisiones-abiertas).

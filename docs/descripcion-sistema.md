@@ -23,6 +23,8 @@ El equipo se comporta como un producto: el usuario lo conecta, lo configura una 
 
 ## 3. Arquitectura
 
+Resumen. El detalle (vistas lógica, física, de firmware y de software, diagramas de secuencia y decisiones) está en [arquitectura.md](arquitectura.md).
+
 ```
 ┌──────────┐   I²C   ┌───────────────┐  UART 115200 8N1  ┌────────────────────────┐  Ethernet / USB  ┌───────────┐
 │  SHT31   │◄───────►│ NUCLEO-L432KC │◄─────────────────►│ Milk-V Duo S (Linux)   │◄────────────────►│ Navegador │
