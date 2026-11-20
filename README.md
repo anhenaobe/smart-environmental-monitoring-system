@@ -52,9 +52,9 @@ hardware/   Conexionado, lista de materiales, fotos y carcasa
 
 | Integrante | Rol |
 |---|---|
-| Andrew | Firmware del STM32, servicio de adquisición `envmond` e integración de hardware |
-| Mateo | Datos e interfaz web; coordinación de la matriz y de la declaración de uso de IA |
-| Juan Fernando | Instrumentación y herramientas de verificación; carcasa, manual, video y pruebas con usuarios |
+| Andrew | Firmware STM32, bring-up físico de Milk-V, cableado, alimentación, montaje y pruebas de hardware |
+| Mateo | Servicio Linux `envmond` (UART, datos, alarmas, reset, HTTP/API y páginas de configuración), matriz e IA |
+| Juan Fernando | Dashboard e historial, diagnóstico, herramientas de pruebas, carcasa, manual, video y aceptación |
 
 Detalle en [roles.md](docs/roles.md).
 

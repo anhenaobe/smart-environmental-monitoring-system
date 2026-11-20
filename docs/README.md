@@ -6,15 +6,15 @@
 |---|---|---|---|
 | 1 | [Descripción del sistema](descripcion-sistema.md) | ¿Qué problema resuelve y para quién? | Andrew |
 | 2 | [Requerimientos](requerimientos.md) | ¿Qué debe hacer, con qué criterio medible? | Mateo |
-| 3 | [Arquitectura](arquitectura.md) | ¿Cómo está construido y por qué? | Andrew |
+| 3 | [Arquitectura](arquitectura.md) | ¿Cómo está construido y por qué? | Mateo (redacción), Andrew (revisión técnica), Juan Fernando (UI/diagnóstico) |
 | 4 | [Matriz de verificación](matriz-verificacion.md) | ¿Cómo se demuestra que cumple, quién lo implementa y quién lo prueba? | Mateo y Juan Fernando |
 
 ## Contratos entre partes
 
 | Documento | Conecta | Cambios aprobados por |
 |---|---|---|
-| [Protocolo UART](protocolo-uart.md) | STM32 ↔ `envmond` | Andrew (dueño de los dos extremos) |
-| [Interfaces](interfaces.md) | `envmond` ↔ web, configuración y diagnóstico | Andrew y Mateo; Juan Fernando para el diagnóstico |
+| [Protocolo UART](protocolo-uart.md) | STM32 ↔ `envmond` | Andrew (STM32) + Mateo (Linux), cambios acordados |
+| [Interfaces](interfaces.md) | `envmond` ↔ web, configuración y diagnóstico | Mateo (API) + Juan Fernando (web/diagnóstico) |
 
 ## Producto y gestión
 
