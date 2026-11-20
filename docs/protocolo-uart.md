@@ -119,7 +119,7 @@ Si el STM32 pasa más de 5 s sin recibir `SYS`, considera que Linux no está dis
 $ACK,RST*<CS>
 ```
 
-Confirma que Linux recibió la solicitud de factory reset y la va a ejecutar.
+Confirma que Linux recibió la solicitud de factory reset **y persistió el marcador `reset.pending` necesario para completarlo después de un corte de alimentación**. Si Linux no puede persistir el marcador, no debe responder con `ACK`; el STM32 seguirá los reintentos especificados.
 
 ## 5. Indicadores LED (STM32)
 

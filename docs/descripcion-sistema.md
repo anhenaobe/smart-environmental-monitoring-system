@@ -23,6 +23,8 @@ El equipo se comporta como un producto: el usuario lo conecta, lo configura una 
 
 ## 3. Arquitectura
 
+Resumen. El detalle (vistas lógica, física, de firmware y de software, diagramas de secuencia y decisiones) está en [arquitectura.md](arquitectura.md).
+
 ```
 ┌──────────┐   I²C   ┌───────────────┐  UART 115200 8N1  ┌────────────────────────┐  Ethernet / USB  ┌───────────┐
 │  SHT31   │◄───────►│ NUCLEO-L432KC │◄─────────────────►│ Milk-V Duo S (Linux)   │◄────────────────►│ Navegador │
@@ -108,7 +110,7 @@ Las fallas (sensor desconectado, Linux sin latido) no son estados del sistema si
 
 **Bring-up.** Al arrancar, `envmond` busca `/etc/envmon/config`. Si no existe, entra en modo bring-up: envía `SYS,0` (LED verde a 1 Hz) y la web solo muestra el formulario de configuración. Al guardar, la configuración se valida, se escribe de forma atómica y el equipo pasa a normal sin reiniciarse.
 
-**Factory reset.** El botón está en el STM32, no en Linux, para que funcione aunque la web no responda. Tras 10 s sostenido, el STM32 envía `BTN,RST`; Linux confirma con `ACK,RST`, borra los registros y por último la configuración, y vuelve a bring-up. Borrar la configuración al final garantiza que un corte de energía a mitad del proceso deje el equipo configurado o en bring-up, nunca en un estado intermedio.
+**Factory reset.** El botón está en el STM32, no en Linux, para que funcione aunque la web no responda. Tras 10 s sostenido, el STM32 envía `BTN,RST`; Linux confirma con `ACK,RST`, borra los registros y por último la configuración, y vuelve a bring-up. El servicio persiste un marcador antes de confirmar el reset. Si ocurre un corte después, reanuda el borrado en el siguiente arranque antes de habilitar la web; esto aún debe comprobarse en la microSD real.
 
 ## 9. Instrumentación soft
 
