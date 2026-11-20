@@ -58,7 +58,7 @@ Fuera de alcance: CO₂, presión, calidad del aire, actuadores (ventiladores, r
 
 | ID | Requerimiento | Prioridad | Verif. | Pruebas |
 |---|---|---|---|---|
-| RF-20 | El servicio Linux (`envmond`) arranca automáticamente con el sistema y se reinicia solo si termina de forma inesperada. | Debe | P | PI-07 |
+| RF-20 | El servicio Linux (`envmond`) arranca automáticamente y un mecanismo de supervisión compatible con la imagen lo reinicia si termina inesperadamente; un script de inicio simple no basta. | Debe | P | PI-07 |
 | RF-21 | El servicio guarda en almacenamiento persistente el promedio, el mínimo y el máximo de cada intervalo de registro (60 s por defecto, configurable entre 60 y 3600 s). | Debe | P | PU-09 |
 | RF-22 | Los registros rotan a diario y se conserva una cantidad configurable de días (7 por defecto, de 1 a 30). | Debería | P | PU-11 |
 | RF-23 | El servicio compara cada medición válida con los umbrales configurados y señala alarma en la web y en los LED. | Debe | P | PI-09 |
@@ -80,7 +80,7 @@ Fuera de alcance: CO₂, presión, calidad del aire, actuadores (ventiladores, r
 | RF-40 | Si no existe configuración, el equipo arranca en modo bring-up y lo indica con el LED verde parpadeando a 1 Hz. | Debe | P | PB-01 |
 | RF-41 | En modo bring-up, la web presenta una página de configuración inicial con: nombre del equipo, contraseña de administrador, hora/NTP, intervalo de registro y umbrales de alarma. Cualquier otra página redirige a esta. | Debe | D | PB-01, PB-03 |
 | RF-42 | La configuración se valida antes de guardarla: rangos de cada campo, mínimo < máximo y contraseña de al menos 8 caracteres. Un error se muestra junto al campo que lo causó. | Debe | P | PU-14, PB-02 |
-| RF-43 | La configuración se guarda de forma atómica (archivo temporal + `fsync` + `rename`). Un corte de energía durante el guardado no deja una configuración corrupta. | Debe | P | PU-07, PB-04 |
+| RF-43 | La configuración se guarda con archivo temporal, `fsync`, `rename` y sincronización del directorio cuando proceda; un corte de energía no debe dejar una configuración truncada en el sistema de archivos validado. | Debe | P | PU-07, PB-04 |
 | RF-44 | Al guardar la configuración, el equipo pasa a funcionamiento normal en ≤ 5 s, sin reiniciarse ni reinstalar nada. | Debe | P | PB-03 |
 | RF-45 | El manual de usuario describe el bring-up paso a paso para un usuario no experto. | Debe | D | PB-05 |
 | RF-46 | La dirección para entrar al bring-up es fija y conocida de antemano: aparece en el manual y en una etiqueta en la carcasa. El usuario no tiene que averiguar la IP del equipo. | Debe | P | PB-06 |
@@ -92,7 +92,7 @@ Fuera de alcance: CO₂, presión, calidad del aire, actuadores (ventiladores, r
 | RF-50 | El factory reset se activa **solo** con el botón físico conectado al STM32, mantenido presionado 10 s. No hay opción de reset en la web. | Debe | P / I | PF-02 |
 | RF-51 | Mientras el botón está presionado, los LED parpadean a 5 Hz. Si se suelta antes de 10 s, no ocurre nada. | Debe | P | PU-10, PF-01 |
 | RF-52 | El reset borra la configuración y los registros, y el equipo vuelve al modo bring-up (RF-40). | Debe | P | PF-02, PF-05 |
-| RF-53 | El archivo de configuración se elimina como **último** paso. Un corte de energía a mitad del reset deja el equipo en un estado coherente: configurado o en bring-up, nunca intermedio. | Debe | P | PU-12, PF-03 |
+| RF-53 | Antes de confirmar el reset se persiste `reset.pending`; un arranque con ese marcador reanuda el borrado de historial y configuración antes de habilitar la web. Si el corte ocurre antes de persistirlo, se conserva el estado anterior. El mecanismo se verifica en la microSD real. | Debe | P | PU-12, PF-03 |
 | RF-54 | Si Linux no confirma el reset (`ACK`) tras 5 intentos, el STM32 lo indica con los LED. | Debe | P | PF-04 |
 | RF-55 | Desde que se cumplen los 10 s del botón hasta que el equipo está en bring-up pasan ≤ 30 s. | Debería | P | PF-02 |
 
@@ -142,11 +142,11 @@ Fuera de alcance: CO₂, presión, calidad del aire, actuadores (ventiladores, r
 
 | Tema | Opciones | Propuesta | Se decide con |
 |---|---|---|---|
-| Servidor HTTP | Biblioteca embebible en C (mongoose / civetweb) o lighttpd + CGI en C | mongoose: un solo archivo `.c`, sin procesos adicionales; revisar su licencia (GPLv2 / comercial) | Mateo |
+| Servidor HTTP | Biblioteca embebible en C con licencia compatible con GPL-3.0 o servidor ligero alternativo | Verificar licencia, RAM y compilación RISC-V; Mongoose no queda aprobado sin ese análisis. | Mateo |
 | Acceso en el bring-up (RF-46) | a) Red USB (RNDIS) de la Duo S con IP fija; b) Ethernet directa al PC con IP fija y servidor DHCP en el equipo; c) DHCP del router + mDNS | Probar a) primero, porque la imagen oficial ya trae la red USB con IP fija (192.168.42.1). Si la alimentación final no usa ese USB, pasar a b) | PI-01 |
 | Hora | RTC de la Duo S (sin batería, se pierde al apagar), NTP o hora del navegador en el bring-up | NTP si hay red; si no, tomar la hora del navegador al guardar el formulario. Los registros sin hora válida se marcan | PI-01 |
 | Hash de la contraseña | `crypt()` de la libc con SHA-512 (`$6$`) o una biblioteca | `crypt()`: no agrega dependencias; confirmar que la libc de la imagen lo soporta | Mateo |
-| Aviso web → `envmond` | `SIGHUP` con PID en `/run/envmon/envmond.pid`, o socket Unix | Si la web corre dentro de `envmond` (mongoose), no hace falta aviso: es una llamada directa | Mateo + Andrew |
+| Aviso web → `envmond` | HTTP embebido en `envmond` o servicio separado con IPC | Si corre dentro de `envmond`, el manejador aplica la configuración sin `SIGHUP`; coordinar el contrato con Juan Fernando. | Mateo + Juan Fernando |
 | Valgrind y SystemTap en la Duo S | Disponibles en la imagen, o solo en el host | Verificar en el host x86 con puerto serie virtual (`socat`); en la placa usar `/proc/<pid>/status`, `strace` y `perf` si están | Juan Fernando |
 | Pines de la UART | UART1–UART3 del J3 de la Duo S (por pinmux) y USART1 del NUCLEO | No usar UART0 (pines 8 y 10 del J3): es la consola de Linux | PI-01 |
 | Alimentación | Una fuente para las dos placas o dos fuentes | Medir el consumo (PS-06) antes de decidir | PS-06 |

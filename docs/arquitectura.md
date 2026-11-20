@@ -1,6 +1,6 @@
 # Arquitectura de la solución
 
-Versión: 0.1 (borrador para revisión en clase)
+Versión: 0.2 (borrador para revisión: hardware, imagen Linux y servidor HTTP aún sin validar)
 
 Este documento describe **cómo** se construye el sistema. El **qué** está en [requerimientos.md](requerimientos.md) y el **para qué** en [descripcion-sistema.md](descripcion-sistema.md). Los contratos entre partes están en [protocolo-uart.md](protocolo-uart.md) e [interfaces.md](interfaces.md).
 
@@ -46,10 +46,14 @@ flowchart LR
 | Bloque | Dueño | Requerimientos |
 |---|---|---|
 | Adquisición y validación | Andrew | RF-01 a RF-05 |
-| Protocolo UART (ambos extremos) | Andrew | RF-10 a RF-13 |
+| UART en STM32 y enlace físico | Andrew | RF-10, RF-11 |
+| UART en Linux, parser, secuencia y latido `SYS` | Mateo | RF-10 a RF-13 |
 | LED, botón, watchdog, instrumentación del STM32 | Andrew | RF-05, RF-07, RF-31, RF-50, RF-51, RF-54 |
-| Registro, historial, configuración, servidor HTTP y páginas | Mateo | RF-21, RF-22, RF-30, RF-32, RF-40 a RF-44 |
-| Alarmas y secuencia del factory reset | Andrew | RF-23, RF-24, RF-52, RF-53 |
+| Servicio Linux, historial, configuración, HTTP/API y supervisión | Mateo | RF-20 a RF-25, RF-40 a RF-44 |
+| Páginas de bring-up y ajustes | Mateo | RF-32, RF-41, RF-42 |
+| Dashboard, historial y página de diagnóstico | Juan Fernando | RF-30, RF-60 a RF-64 |
+| Pulsador físico, solicitud de reset y LED | Andrew | RF-31, RF-50, RF-51, RF-54 |
+| Alarmas y recuperación del factory reset en Linux | Mateo | RF-23, RF-24, RF-52, RF-53 |
 | Métricas del sistema y página de diagnóstico | Juan Fernando | RF-60 a RF-64 |
 
 ## 3. Vista física
@@ -122,7 +126,7 @@ flowchart TB
 
 ### Procesos
 
-Un único proceso propio, `envmond`, escrito en C. Incluye el servidor HTTP (biblioteca embebible, propuesta: mongoose), así que no hay Nginx, Apache ni intérpretes.
+Un único proceso propio, `envmond`, escrito en C, con servidor HTTP embebido es el diseño propuesto. **La biblioteca HTTP aún no está seleccionada**: debe ser compatible con la licencia GPL-3.0 del repositorio, compilar para la Milk-V y cumplir los límites de recursos. Mongoose no queda aprobado automáticamente; si ninguna biblioteca resulta viable, se reconsiderará un servidor ligero separado.
 
 `envmond` tiene **un solo hilo** con un lazo de eventos: en cada vuelta atiende la UART (lectura no bloqueante), las conexiones HTTP y los temporizadores de 1 s (enviar `SYS`, publicar el estado) y del intervalo de registro. Un solo hilo evita candados y carreras entre la recepción, la web y el registro.
 
@@ -148,14 +152,13 @@ flowchart LR
     PROC["/proc, /sys"] --> METRICS
     LOGGER --> CSV["/var/lib/envmon/*.csv"]
     CONFIG <--> CFG["/etc/envmon/config"]
-    ESTADO --> RUN["/run/envmon/estado.json"]
 ```
 
 | Módulo | Dueño | Prueba unitaria |
 |---|---|---|
-| `uart`, `parser`, `alarm`, `reset` | Andrew | PU-04, PU-05, PU-06, PU-12, PU-13 |
-| `config`, `logger`, `http` y páginas | Mateo | PU-07, PU-09, PU-11, PU-14, PU-15 |
-| `metrics` y página de diagnóstico | Juan Fernando | PU-08 |
+| `uart`, `parser`, `alarm`, `reset` | Mateo | PU-04, PU-05, PU-06, PU-12, PU-13 |
+| `config`, `logger`, `http`/API y páginas de bring-up/ajustes | Mateo | PU-07, PU-09, PU-11, PU-14, PU-15 |
+| `metrics` y páginas de consulta y diagnóstico | Juan Fernando | PU-08, PI-08, PI-10 |
 
 ### Archivos en la Milk-V
 
@@ -163,12 +166,12 @@ flowchart LR
 |---|---|---|---|
 | `/usr/bin/envmond` | Binario del servicio | microSD | No |
 | `/usr/share/envmon/www/` | Páginas web estáticas | microSD | No |
-| Script de inicio (`/etc/init.d/S99envmond` o servicio equivalente) | Arranque automático y reinicio si termina (RF-20) | microSD | No |
-| `/etc/envmon/config` | Configuración del bring-up | microSD | Sí, **último paso** |
+| Script de inicio + mecanismo de supervisión compatible con `init` | Arranque automático y recuperación tras caída de `envmond` (RF-20) | microSD | No |
+| `/etc/envmon/config` | Configuración del bring-up | microSD | Sí, durante el reset |
+| `/etc/envmon/reset.pending` | Marcador durable de restablecimiento pendiente | microSD | Se elimina al finalizar el reset |
 | `/var/lib/envmon/AAAA-MM-DD.csv` | Historial agregado | microSD | Sí |
-| `/run/envmon/estado.json` | Estado actual, cada 1 s | RAM (tmpfs) | Se pierde al apagar |
 
-La imagen oficial de la Duo S está basada en Buildroot, que normalmente usa el `init` de BusyBox en lugar de systemd. El mecanismo exacto de arranque y reinicio automático se confirma en PI-01.
+La imagen oficial de la Duo S está basada en Buildroot y puede usar `init` de BusyBox en lugar de systemd. **Un script de arranque no reinicia por sí solo un proceso tras `kill -9`**: hay que comprobar en PI-01/PI-07 `respawn` de `init` u otro supervisor compatible con la imagen. El estado actual vive en memoria de `envmond` y se expone directamente por HTTP/JSON; no se duplica cada segundo en un archivo de `/run`.
 
 ### Compilación
 
@@ -186,8 +189,9 @@ La imagen oficial de la Duo S está basada en Buildroot, que normalmente usa el 
 ```mermaid
 stateDiagram-v2
     [*] --> Arranque
-    Arranque --> BringUp: no existe /etc/envmon/config
-    Arranque --> Normal: configuración válida
+    Arranque --> FactoryReset: existe reset.pending (reanudar)
+    Arranque --> BringUp: no existe config ni reset.pending
+    Arranque --> Normal: config válida, sin reset.pending
     BringUp --> Normal: formulario guardado (≤ 5 s)
     Normal --> Alarma: 5 lecturas fuera de rango
     Alarma --> Normal: vuelve al rango con histéresis
@@ -231,7 +235,7 @@ sequenceDiagram
     L-->>W: formulario de configuración
     A->>W: completa y pulsa Guardar
     W->>L: POST /api/bringup
-    L->>L: validar → escribir temporal → fsync → rename
+    L->>L: validar → archivo temporal → fsync → rename → fsync directorio
     L-->>W: OK, redirige al inicio
     L->>M: $SYS,1
     M->>M: LED verde fijo
@@ -248,14 +252,18 @@ sequenceDiagram
     M->>M: LED a 5 Hz
     Note over M: 10 s sostenido
     M->>L: $BTN,RST
+    L->>L: persistir reset.pending y fsync
     L->>M: $ACK,RST
     L->>M: $SYS,3
-    L->>L: borrar /var/lib/envmon/
-    L->>L: borrar /etc/envmon/config (último paso)
+    L->>L: borrar historial (repetible)
+    L->>L: borrar config y sincronizar directorio
+    L->>L: retirar reset.pending al terminar
     L->>M: $SYS,0
     M->>M: LED verde a 1 Hz (bring-up)
-    Note over M,L: Si no llega ACK tras 5 intentos,<br/>el STM32 muestra "sin ACK" (RF-54)
+    Note over M,L: Sin marcador durable, Linux no envía ACK.<br/>Tras 5 intentos sin ACK, STM32 indica el error.
 ```
+
+**Recuperación tras apagado:** si existe `/etc/envmon/reset.pending`, `envmond` completa el borrado idempotente antes de habilitar la interfaz web. Si el apagado ocurrió antes de que el marcador fuera durable, permanece la configuración anterior. La recuperación debe validarse con la microSD y la imagen Linux utilizadas; no protege frente a daños físicos o corrupción del sistema de archivos.
 
 ### 6.5 Linux no responde
 
@@ -268,7 +276,7 @@ sequenceDiagram
     loop cada 1 s
         M->>L: $ENV (sigue midiendo y transmitiendo, RF-06)
     end
-    Note over L: el script de inicio reinicia envmond
+    Note over L: un supervisor probado reinicia envmond
     L->>M: $SYS,1
     M->>M: vuelve el patrón normal
 ```
@@ -280,8 +288,8 @@ sequenceDiagram
 | D1 | UART entre placas | SPI, I²C | En el reto anterior el SPI de la Milk-V no estuvo disponible; la UART se depura con cualquier terminal y basta para 1 trama/s | Decidida |
 | D2 | Protocolo de texto con checksum XOR | Binario con CRC | Legible en la terminal; 33 bytes/s están muy lejos del límite de 115200 baudios | Decidida |
 | D3 | C en el firmware y en Linux | Python, Node | Recomendación del curso: compilado, nativo y con menos recursos (RNF-01, RNF-02) | Decidida |
-| D4 | Un proceso de un solo hilo con servidor HTTP embebido | Nginx/lighttpd + CGI; varios hilos | Menos procesos y menos memoria, sin sincronización entre hilos, una sola cosa que arrancar | Propuesta (confirmar mongoose) |
+| D4 | Un proceso de un solo hilo con servidor HTTP embebible y licencia compatible | Servicio HTTP separado y CGI; varios hilos | Menor complejidad potencial; pendiente comprobar licencia, compilación RISC-V y memoria | Propuesta, biblioteca por decidir |
 | D5 | Botón de reset en el STM32 | Botón en un GPIO de Linux; opción en la web | Funciona aunque la web no responda; evita resets accidentales desde la red | Decidida |
-| D6 | Configuración solo en Linux, borrada al final del reset | Configuración también en el STM32 | Un solo lugar que borrar; un corte de energía deja un estado coherente (RF-53) | Decidida |
-| D7 | Estado actual en `/run` (RAM), historial agregado por minuto | Escribir cada medición en la microSD | Menos desgaste de la microSD (RNF-08) | Decidida |
+| D6 | Configuración solo en Linux y reset recuperable mediante `reset.pending` | Configuración también en STM32; borrado sin marcador | Permite reanudar el reset tras corte de alimentación, sujeto a ensayos reales (RF-53) | Propuesta, pendiente validar |
+| D7 | Estado en RAM dentro de `envmond` e historial persistente por intervalo | Escribir cada medición en microSD o duplicar estado en archivo JSON | Menos E/S y menos componentes que mantener (RNF-08) | Propuesta |
 | D8 | Acceso al bring-up por dirección fija | DHCP + buscar la IP en el router | Un usuario no experto no sabe encontrar la IP (RF-46) | Propuesta (red USB o Ethernet directa, se decide en PI-01) |
