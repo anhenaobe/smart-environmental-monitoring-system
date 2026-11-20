@@ -1,7 +1,12 @@
 # Smart Environmental Monitoring System
 
-Monitor autónomo de temperatura y humedad relativa con **STM32 (NUCLEO-L432KC)** y **Milk-V Duo S**, desarrollado como proyecto del curso de Linux embebido.
+Prototipo de **vigilancia microclimática para conservación preventiva de documentos en papel**, usando **STM32 (NUCLEO-L432KC)** y **Milk-V Duo S** en el curso de Linux embebido. Monitoriza un **gabinete documental pequeño**, no una bodega completa.
 
+## Problema que resuelve
+
+Las inspecciones ocasionales de temperatura y humedad no revelan qué ocurrió fuera del horario de atención. Registramos el aire próximo a una colección documental y señalamos desviaciones respecto a los límites **configurados**. No controlamos el clima ni diagnosticamos daño del papel.
+
+**Perfil inicial sugerido, editable:** **18–22 °C** y **35–50 % HR**. No son valores universales: consultar [fundamentación, cifras y limitaciones](docs/criterios-conservacion.md), basada en NEDCC 2.1/2.2, Library of Congress y CCI. La instalación y la exactitud reales siguen pendientes de verificación.
 ## Funcionamiento
 
 1. Un sensor I²C (SHT31 o equivalente) mide la temperatura y la humedad.
@@ -44,6 +49,7 @@ hardware/   Conexionado, lista de materiales, fotos y carcasa
 Índice completo y orden de lectura en [docs/README.md](docs/README.md). Los cuatro documentos principales:
 
 1. [Descripción del sistema](docs/descripcion-sistema.md): qué problema resuelve y para quién.
+   - [Criterios ambientales](docs/criterios-conservacion.md): fuentes, intervalos, incertidumbre y decisiones de diseño.
 2. [Análisis de requerimientos](docs/requerimientos.md): qué debe hacer, con criterios medibles.
 3. [Arquitectura de la solución](docs/arquitectura.md): cómo está construido.
 4. [Matriz de verificación](docs/matriz-verificacion.md): cómo se demuestra que cumple.
@@ -71,4 +77,4 @@ El hardware se valida antes de construir el resto del software:
 
 ## Estado
 
-🚧 En definición (documentación v0.3: se agrega la arquitectura y el equipo queda de tres integrantes). Ver las decisiones abiertas en [requerimientos.md](docs/requerimientos.md#6-decisiones-abiertas).
+🚧 Aplicación definida; producto en desarrollo. La validación física y las pruebas de la matriz siguen pendientes. Ver [requerimientos.md](docs/requerimientos.md#6-decisiones-abiertas).
