@@ -1,6 +1,6 @@
 # Matriz de verificación
 
-Versión: 0.3 (borrador para revisión en clase)
+Versión: 0.4 (enfoque documental, sin cambios en estados de prueba)
 
 **Tipos:** PU = unitaria · PI = integración · PB = bring-up · PF = factory reset · PS = sistema / aceptación.
 **Estado:** Pendiente · En curso · Aprobada · Falló · Bloqueada. Un resultado negativo se conserva: no se borra ni se reescribe, se agrega una nueva ejecución.
@@ -9,6 +9,7 @@ Regla del equipo: **quien implementa no verifica formalmente su propia funcional
 
 Las pruebas unitarias corren en el host (x86) sobre los módulos de lógica pura, sin HAL ni hardware. Las de integración y sistema corren sobre el hardware real salvo que la herramienta diga "host".
 
+**Caso de uso para aceptación:** una sonda en un gabinete documental pequeño. Los ensayos demuestran el funcionamiento del sistema, no la preservación material ni uniformidad espacial. Ver [criterios-conservacion.md](criterios-conservacion.md).
 ## 1. Pruebas unitarias
 
 | ID | Req. | Prueba | Criterio de aceptación | Implementa | Verifica | Herramienta | Estado |
@@ -41,7 +42,7 @@ Las pruebas unitarias corren en el host (x86) sobre los módulos de lógica pura
 | PI-06 | RF-05 | Watchdog: forzar un bloqueo del lazo principal (firmware de prueba con comando de bloqueo) | El STM32 se reinicia y `STA` reporta `causa_reset = 2` | Andrew | Juan Fernando | ST-LINK, terminal serie | Pendiente |
 | PI-07 | RF-20 | Arranque automático y reinicio supervisado del servicio | Tras reiniciar la placa, recibe tramas sin intervención; un supervisor compatible con la imagen lo reinicia tras `kill -9` en ≤ 5 s | Mateo | Andrew | `ps`, `kill`, registros del servicio | Pendiente |
 | PI-08 | RF-30 | Interfaz web: valores actuales e historial | Los valores de la web coinciden con las tramas en ≤ 2 s; la gráfica muestra 24 h de datos de prueba | Mateo + Juan Fernando | Andrew | Navegador, `curl` | Pendiente |
-| PI-09 | RF-23 | Alarma por umbral (Linux y STM32) | Con el umbral máximo de temperatura 1 °C por encima del ambiente, calentar el sensor con la mano: alarma en `/api/estado` y en el LED; al enfriarse se apaga | Andrew + Mateo | Juan Fernando | Navegador, observación | Pendiente |
+| PI-09 | RF-23 | Alarma por umbral para gabinete documental | Medir temperatura ambiente T y configurar **solo para la prueba** el máximo T+1 °C; elevar la temperatura medida hasta **>T+1 °C** mediante perturbación controlada sin exponer documentos. Confirmar alarma en `/api/estado` y LED, y desaparición al recuperar el rango. Registrar umbral, lecturas, tiempos y referencia; RF-24 tiene prueba de histéresis independiente (PU-13). | Andrew + Mateo | Juan Fernando | Terminal, navegador y termohigrómetro | Pendiente |
 | PI-10 | RF-60 a RF-63 | Página de diagnóstico frente a herramientas del sistema | CPU y memoria dentro de ±5 puntos de `top`/`free`; bytes de red iguales a `/proc/net/dev`; puertos iguales a `ss -tulpn` (o `netstat`); contadores UART iguales a los inyectados | Juan Fernando | Mateo | `top`, `free`, `ss`, navegador | Pendiente |
 | PI-11 | RNF-03 | Fugas de memoria del servicio con tramas reales y erróneas | Valgrind sin "definitely lost" ni "invalid read/write" tras 30 min con un puerto serie virtual | Mateo | Juan Fernando | Valgrind + `socat` (host) | Pendiente |
 | PI-12 | RF-06 | STM32 sin Linux: detener `envmond` durante 2 min | El STM32 sigue enviando `ENV` cada 1 s (sin saltos de `seq` al leer con `cat`) y muestra el patrón "sin Linux" | Andrew | Mateo | `kill` / script de inicio, terminal serie | Pendiente |
@@ -54,7 +55,7 @@ Las pruebas unitarias corren en el host (x86) sobre los módulos de lógica pura
 
 | ID | Req. | Prueba | Criterio de aceptación | Implementa | Verifica | Herramienta | Estado |
 |---|---|---|---|---|---|---|---|
-| PB-01 | RF-40, RF-41 | Arranque sin configuración | LED verde a 1 Hz; cualquier URL de la web redirige a la página de configuración | Andrew + Mateo | Juan Fernando | Observación, navegador | Pendiente |
+| PB-01 | RF-40, RF-41 | Arranque sin configuración | LED verde a 1 Hz; toda URL de la web redirige al formulario; los umbrales **18–22 °C y 35–50 % HR** están sugeridos pero se pueden editar | Andrew + Mateo | Juan Fernando | Observación, navegador | Pendiente |
 | PB-02 | RF-42 | Datos inválidos en el formulario (los mismos casos de PU-14, desde el navegador) | Se rechazan con un mensaje junto al campo; no se crea `/etc/envmon/config` | Mateo | Andrew | Navegador, `ls` | Pendiente |
 | PB-03 | RF-41, RF-44 | Configuración completa | Pasa a funcionamiento normal (LED verde fijo) en ≤ 5 s sin reiniciar; la web muestra la medición actual | Andrew + Mateo | Juan Fernando | Navegador, cronómetro | Pendiente |
 | PB-04 | RF-43 | Corte de energía durante el guardado (10 repeticiones). Complementa a PU-07, que cubre los puntos exactos de falla | El equipo siempre arranca en un estado coherente (bring-up o configurado) | Mateo | Juan Fernando | Desconexión física | Pendiente |

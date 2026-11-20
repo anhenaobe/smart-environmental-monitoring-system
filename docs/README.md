@@ -5,6 +5,7 @@
 | # | Documento | Pregunta que responde | Responsable |
 |---|---|---|---|
 | 1 | [Descripción del sistema](descripcion-sistema.md) | ¿Qué problema resuelve y para quién? | Andrew |
+| 1a | [Criterios ambientales de conservación](criterios-conservacion.md) | ¿Qué números están sustentados por bibliografía y cuáles son decisiones de diseño? | Andrew (propuesta), revisión del equipo |
 | 2 | [Requerimientos](requerimientos.md) | ¿Qué debe hacer, con qué criterio medible? | Mateo |
 | 3 | [Arquitectura](arquitectura.md) | ¿Cómo está construido y por qué? | Mateo (redacción), Andrew (revisión técnica), Juan Fernando (UI/diagnóstico) |
 | 4 | [Matriz de verificación](matriz-verificacion.md) | ¿Cómo se demuestra que cumple, quién lo implementa y quién lo prueba? | Mateo y Juan Fernando |
