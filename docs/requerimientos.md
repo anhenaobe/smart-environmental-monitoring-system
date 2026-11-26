@@ -1,6 +1,6 @@
 # Análisis de requerimientos
 
-Versión: 0.2 (borrador para revisión en clase)
+Versión: 0.3 (adaptación a conservación documental, revisión del equipo pendiente)
 
 Cada requerimiento tiene un identificador único que se usa en la [matriz de verificación](matriz-verificacion.md). Los marcados como **(curso)** cubren los elementos mínimos que exige el enunciado.
 
@@ -9,15 +9,16 @@ Cada requerimiento tiene un identificador único que se usa en la [matriz de ver
 
 ## 1. Alcance
 
-Incluido: medición de temperatura y humedad relativa, registro histórico, interfaz web local, indicadores LED, bring-up, factory reset, instrumentación del sistema y carcasa prototipo.
+Incluido: seguimiento del **aire en un solo gabinete documental pequeño** con SHT31; medición de temperatura y humedad relativa, registro histórico, interfaz web local, indicadores LED, bring-up, factory reset, instrumentación y carcasa. Perfil de umbrales **sugerido y editable**: 18–22 °C y 35–50 % HR ([fuentes](criterios-conservacion.md)).
 
-Fuera de alcance: CO₂, presión, calidad del aire, actuadores (ventiladores, relés), conectividad a la nube, aplicación móvil, notificaciones (correo, mensajería) y alimentación por batería.
+Fuera de alcance: CO₂, presión, calidad del aire, actuadores (ventiladores, relés), nube, aplicación móvil, notificaciones externas, batería, control climático, humedad interna del papel, detección de moho o deterioro y representar diferentes zonas con una única sonda.
 
+**Justificación:** NEDCC 2.1 y Library of Congress sustentan el perfil sugerido; NEDCC 2.2 sustenta la monitorización, sin establecer un intervalo universal. 1 Hz (RF-01), 60 s de registro (RF-21), 5 lecturas y 0,5 °C / 2 puntos HR de histéresis (RF-24) son **decisiones de ingeniería**, no límites normativos. La tolerancia RNF-07 no permite garantizar condiciones reales cerca del umbral: [criterios-conservacion.md](criterios-conservacion.md).
 ## 2. Actores y casos de uso
 
 | Actor | Descripción |
 |---|---|
-| Usuario final | Persona no experta en embebidos que consulta el ambiente de un espacio (laboratorio, bodega, cuarto de servidores). |
+| Usuario final | Persona responsable de consultar las condiciones de un gabinete documental sin conocimientos de Linux embebido. |
 | Administrador | Quien instala el equipo: hace el bring-up y ajusta los umbrales. Conoce la contraseña. |
 | Soporte técnico | Revisa la página de diagnóstico cuando algo falla. |
 
@@ -61,7 +62,7 @@ Fuera de alcance: CO₂, presión, calidad del aire, actuadores (ventiladores, r
 | RF-20 | El servicio Linux (`envmond`) arranca automáticamente y un mecanismo de supervisión compatible con la imagen lo reinicia si termina inesperadamente; un script de inicio simple no basta. | Debe | P | PI-07 |
 | RF-21 | El servicio guarda en almacenamiento persistente el promedio, el mínimo y el máximo de cada intervalo de registro (60 s por defecto, configurable entre 60 y 3600 s). | Debe | P | PU-09 |
 | RF-22 | Los registros rotan a diario y se conserva una cantidad configurable de días (7 por defecto, de 1 a 30). | Debería | P | PU-11 |
-| RF-23 | El servicio compara cada medición válida con los umbrales configurados y señala alarma en la web y en los LED. | Debe | P | PI-09 |
+| RF-23 | El servicio compara mediciones válidas con los límites **configurados para el gabinete** y señala una **desviación ambiental** en la web y los LED; no declara daño documental. | Debe | P | PI-09 |
 | RF-24 | La alarma se activa cuando la variable lleva 5 lecturas consecutivas fuera de rango y se desactiva cuando vuelve al rango con una histéresis de 0,5 °C o 2 % HR, para evitar que parpadee en el límite. | Debería | P | PU-13 |
 | RF-25 | Si no hay una medición válida en los últimos 5 s, la web muestra "sin datos" en lugar del último valor. | Debe | P | PI-05 |
 
@@ -78,7 +79,7 @@ Fuera de alcance: CO₂, presión, calidad del aire, actuadores (ventiladores, r
 | ID | Requerimiento | Prioridad | Verif. | Pruebas |
 |---|---|---|---|---|
 | RF-40 | Si no existe configuración, el equipo arranca en modo bring-up y lo indica con el LED verde parpadeando a 1 Hz. | Debe | P | PB-01 |
-| RF-41 | En modo bring-up, la web presenta una página de configuración inicial con: nombre del equipo, contraseña de administrador, hora/NTP, intervalo de registro y umbrales de alarma. Cualquier otra página redirige a esta. | Debe | D | PB-01, PB-03 |
+| RF-41 | En bring-up, la web muestra nombre del gabinete/equipo, contraseña, hora/NTP, intervalo y umbrales **editables**; propone como perfil inicial **18–22 °C y 35–50 % HR** para papel. Cualquier otra página redirige a este formulario. | Debe | D | PB-01, PB-03 |
 | RF-42 | La configuración se valida antes de guardarla: rangos de cada campo, mínimo < máximo y contraseña de al menos 8 caracteres. Un error se muestra junto al campo que lo causó. | Debe | P | PU-14, PB-02 |
 | RF-43 | La configuración se guarda con archivo temporal, `fsync`, `rename` y sincronización del directorio cuando proceda; un corte de energía no debe dejar una configuración truncada en el sistema de archivos validado. | Debe | P | PU-07, PB-04 |
 | RF-44 | Al guardar la configuración, el equipo pasa a funcionamiento normal en ≤ 5 s, sin reiniciarse ni reinstalar nada. | Debe | P | PB-03 |

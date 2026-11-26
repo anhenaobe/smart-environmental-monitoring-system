@@ -1,25 +1,27 @@
 # Descripción del sistema
 
-Versión: 0.2 (borrador para revisión en clase)
+Versión: 0.3 (enfoque en conservación documental, revisión del equipo pendiente)
 
 ## 1. Problema y propósito
 
-En laboratorios, bodegas de reactivos o cuartos de equipos, la temperatura y la humedad deben mantenerse dentro de un rango, pero normalmente nadie las mide de forma continua: se revisa un termómetro de vez en cuando, o nunca. Cuando algo sale mal (un aire acondicionado que falla un fin de semana) no queda registro de cuándo empezó ni de cuánto duró.
+Los cambios de temperatura y humedad relativa en **gabinetes pequeños que guardan documentos y libros en papel** pueden pasar inadvertidos cuando se inspeccionan ocasionalmente. Sin registro continuo, el responsable desconoce cuándo ocurrieron condiciones fuera de los umbrales adoptados ni qué extremos alcanzó el aire. El NEDCC 2.2 respalda el registro y análisis ambiental como parte de conservación preventiva: [fundamentación](criterios-conservacion.md).
 
-El **Smart Environmental Monitoring System** es un dispositivo autónomo que mide la temperatura y la humedad relativa de un espacio interior cada segundo, guarda su historial y lo presenta a personas no expertas de dos formas:
+El **Smart Environmental Monitoring System** está diseñado para supervisar **un gabinete documental pequeño, en un único punto representativo**. Mide temperatura y humedad del aire cada segundo, guarda el historial y presenta los valores de dos formas:
 
 - **Sin abrir nada:** dos LED en la carcasa dicen si todo está bien, si hay una alarma o si el equipo tiene una falla.
 - **Desde el navegador:** una página web local con los valores actuales, la gráfica del historial y una página de diagnóstico para soporte técnico.
 
-El equipo se comporta como un producto: el usuario lo conecta, lo configura una sola vez siguiendo el manual (bring-up) y lo deja funcionando. Si se va a reubicar o entregar a otra persona, un botón lo devuelve al estado de fábrica.
+El equipo se plantea como producto: se instala, configura mediante bring-up y consulta sin conocimientos de Linux. Un botón lo devuelve a fábrica. **No deshumidifica ni enfría, no determina si un documento ya se dañó y no representa una sala completa.** Ofrece un perfil editable de **18–22 °C / 35–50 % HR**, no una consigna universal.
 
 ## 2. Escenario de uso
 
-1. El administrador saca el equipo de la caja, lo conecta y abre en su computador la dirección impresa en la etiqueta.
-2. Completa el formulario: nombre ("Bodega reactivos"), contraseña, umbrales (15–30 °C, 30–70 % HR). Guarda. El LED verde queda fijo.
-3. Durante la semana, cualquier persona que entra ve el LED verde. Un sábado el aire se apaga: la temperatura pasa de 30 °C y el LED rojo empieza a parpadear.
-4. El lunes, el administrador abre el historial y ve que la alarma empezó el sábado a las 14:10 y que la temperatura llegó a 33 °C.
-5. Si un día la web deja de mostrar datos, soporte técnico abre la página de diagnóstico y ve, por ejemplo, que el STM32 reporta errores I²C: el problema es el cable del sensor, no Linux.
+1. El encargado del archivo instala la sonda en el aire de un gabinete con documentos en papel y mantiene las placas que desprenden calor fuera del volumen medido.
+2. Completa el bring-up con nombre ("Gabinete documental A"), contraseña, hora y umbrales. El formulario sugiere **18–22 °C** y **35–50 % HR**, **editables** según la colección.
+3. Fuera de horario la humedad excede el límite configurado. `envmond` indica la alarma y el STM32 refleja el estado en los LED; se guardan extremos y tendencias por intervalos de registro.
+4. Al volver, el encargado consulta el historial y determina si debe inspeccionar el gabinete. El histórico por minuto **no revela la duración exacta de excursiones de segundos** sin un registro adicional de eventos.
+5. Si la sonda se desconecta, la web distingue una falla de sensor de una medición válida.
+
+Los números de conservación, la incertidumbre de la medición y la limitación de usar una sonda se detallan en [criterios-conservacion.md](criterios-conservacion.md).
 
 ## 3. Arquitectura
 
@@ -51,7 +53,7 @@ Resumen. El detalle (vistas lógica, física, de firmware y de software, diagram
 | 2 LED (verde, rojo) + resistencias | Indicadores de estado |
 | Pulsador (empotrado en la carcasa) | Factory reset |
 | Alimentación USB 5 V | Alimentación del prototipo |
-| Carcasa ventilada | Protección; el sensor queda separado del calor de las placas |
+| Carcasa ventilada | Sonda en el aire del gabinete y separada del calor de Milk-V y STM32 |
 
 Conexión UART: TX↔RX cruzados + GND común, lógica de 3,3 V en ambas placas (el J3 de la Duo S es de 3,3 V; el J4 es de 1,8 V y **no** se usa). Las líneas de alimentación de las placas no se unen. Se usa una UART dedicada, no la UART0 (pines 8 y 10 del J3), que es la consola de Linux. No se usa SPI.
 

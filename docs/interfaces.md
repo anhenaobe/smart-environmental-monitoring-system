@@ -37,17 +37,18 @@ Definido en [protocolo-uart.md](protocolo-uart.md). **Andrew implementa el extre
 Archivo `/etc/envmon/config`, en formato `clave=valor`, una entrada por línea. **Solo `envmond`** lo escribe después de validar los datos enviados por las páginas de bring-up y ajustes (RF-32, con contraseña). Debe usar archivo temporal, `fsync`, `rename` y sincronización del directorio cuando el sistema de archivos lo soporte.
 
 ```
-nombre=Laboratorio 3
+nombre=Gabinete documental A
 admin_hash=<hash de la contraseña>
 ntp=pool.ntp.org
 intervalo_registro_s=60
-temp_min=15.0
-temp_max=30.0
-hr_min=30.0
-hr_max=70.0
+temp_min=18.0
+temp_max=22.0
+hr_min=35.0
+hr_max=50.0
 retencion_dias=7
 ```
 
+- Los umbrales mostrados son un **perfil sugerido editable** para el caso documental, no una condición universal. No cambia el formato ni los endpoints; ver [criterios-conservacion.md](criterios-conservacion.md).
 - Si el archivo no existe, el equipo está en modo bring-up.
 - Con el HTTP integrado en `envmond`, el manejador aplica la configuración tras guardarla; no necesita `SIGHUP` ni un segundo proceso.
 
