@@ -17,6 +17,11 @@
 | [Protocolo UART](protocolo-uart.md) | STM32 ↔ `envmond` | Andrew (STM32) + Mateo (Linux), cambios acordados |
 | [Interfaces](interfaces.md) | `envmond` ↔ web, configuración y diagnóstico | Mateo (API) + Juan Fernando (web/diagnóstico) |
 
+## Pruebas de desarrollo
+
+- [Bring-up STM32 + Milk-V](bringup-v0.md): instalación, cableado, diagnóstico y ensayos físicos pendientes.
+- [Registro de ejecuciones](../tests/registro.md): resultados offline y formato para evidencia de laboratorio.
+
 ## Producto y gestión
 
 | Documento | Contenido | Responsable |

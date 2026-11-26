@@ -19,3 +19,11 @@ firmware/**/.settings/
 .idea/
 .DS_Store
 *.swp
+
+# Bring-up local
+firmware/.pio/
+linux/uart_probe
+linux/uart_probe-*
+tests/test_protocol
+tests/test_firmware_control
+__pycache__/

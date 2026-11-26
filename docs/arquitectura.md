@@ -69,7 +69,7 @@ flowchart LR
         ETH["RJ45 100 Mbps"]
         SD["microSD"]
     end
-    subgraph NUC["NUCLEO-L432KC"]
+    subgraph NUC["NUCLEO-L432KC / L412KB"]
         U1["USART1"]
         I2C1["I2C1"]
         GPIO["GPIO"]
@@ -86,22 +86,22 @@ flowchart LR
 
 ### Asignación de pines (propuesta, se confirma en PI-01 y PI-02)
 
-| Señal | NUCLEO-L432KC | Milk-V Duo S | Nota |
+| Señal | NUCLEO-L432KC / L412KB | Milk-V Duo S | Nota |
 |---|---|---|---|
-| UART STM32 TX → Linux RX | PA9 (D1), USART1 | UART dedicada del J3, por pinmux | No usar UART0 del J3 (pines 8 y 10): es la consola de Linux |
-| UART Linux TX → STM32 RX | PA10 (D0), USART1 | UART dedicada del J3 | La USART2 del NUCLEO va al ST-LINK (puerto virtual) y queda para depuración |
-| GND | GND | GND del J3 | Revisar la versión de la placa: el pin 9 es GPIO en v1.1 y GND desde v1.2 |
+| UART STM32 TX → Linux RX | PA9 (D1), USART1 | Candidata UART2 RX, B12/J3 pin 13 | No usar UART0 del J3 (pines 8 y 10): es la consola de Linux |
+| UART Linux TX → STM32 RX | PA10 (D0), USART1 | Candidata UART2 TX, B11/J3 pin 11 | La USART2 del NUCLEO va al ST-LINK (puerto virtual) y queda para depuración |
+| GND | GND | J3 pin 6 | Revisar la versión de la placa: el pin 9 es GPIO en v1.1 y GND desde v1.2 |
 | I²C SDA | PB7 (D4), I2C1 | — | Pull-ups en el módulo del sensor |
 | I²C SCL | PB6 (D5), I2C1 | — | |
-| LED verde | Por asignar (GPIO salida) | — | Resistencia en serie según el LED |
-| LED rojo | Por asignar (GPIO salida) | — | |
-| Botón de reset | Por asignar (GPIO entrada con pull-up) | — | Activo en bajo, antirrebote por software |
+| LED verde | PB3/D13 (LD3 de placa) | — | Resistencia en serie según el LED |
+| LED rojo | PB0/D3 (LED externo) | — | |
+| Botón de reset | PA12/D2 (pulsador externo con pull-up) | — | Activo en bajo, antirrebote por software |
 
-Los pines del NUCLEO se deben confirmar con el manual de la placa (UM1956) antes de cablear. Las alimentaciones de las dos placas **no** se unen; solo se comparte GND.
+Los pines del NUCLEO se contrastaron con el manual UM1956; comprobar puentes de soldadura/pines I²C (ver firmware/README.md) y continuidad antes de cablear. El pulsador NRST no es el pulsador de factory reset. La selección UART2 de la Milk-V es solo candidata hasta comprobar DT, pinmux y loopback. Las alimentaciones de las dos placas **no** se unen; solo se comparte GND.
 
 ## 4. Firmware del STM32
 
-Lazo principal cooperativo (*superloop*) sin RTOS, con una base de tiempo de 1 ms (SysTick). Ninguna tarea bloquea: cada una revisa si le toca y retorna.
+Lazo principal cooperativo (*superloop*) sin RTOS, con una base de tiempo de 1 ms (SysTick). Cada tarea revisa si le toca y retorna; las operaciones HAL de I²C y UART tienen tiempos de espera acotados. No se espera indefinidamente a Linux ni a la conversión del sensor.
 
 ```mermaid
 flowchart TB
@@ -173,7 +173,7 @@ flowchart LR
 | `/etc/envmon/reset.pending` | Marcador durable de restablecimiento pendiente | microSD | Se elimina al finalizar el reset |
 | `/var/lib/envmon/AAAA-MM-DD.csv` | Historial agregado | microSD | Sí |
 
-La imagen oficial de la Duo S está basada en Buildroot y puede usar `init` de BusyBox en lugar de systemd. **Un script de arranque no reinicia por sí solo un proceso tras `kill -9`**: hay que comprobar en PI-01/PI-07 `respawn` de `init` u otro supervisor compatible con la imagen. El estado actual vive en memoria de `envmond` y se expone directamente por HTTP/JSON; no se duplica cada segundo en un archivo de `/run`.
+La imagen oficial de la Duo S está basada en Buildroot y puede usar `init` de BusyBox en lugar de systemd. En el montaje anterior uCuPViewer, la placa real usaba Debian forky/sid, kernel 5.10.4-20240527-2+, arquitectura riscv64 y systemd; [evidencia del 5 de noviembre](https://github.com/anhenaobe/uCuPViewer/blob/737c89fece8e1244e8d76db4acdbf6a78dbf1f58/docs/debug/milkv_usb_diagnostico.md). Confirmar que la imagen no cambió antes de elegir el supervisor. **Un script de arranque no reinicia por sí solo un proceso tras `kill -9`**: hay que comprobar en PI-01/PI-07 `respawn` de `init` u otro supervisor compatible con la imagen. El estado actual vive en memoria de `envmond` y se expone directamente por HTTP/JSON; no se duplica cada segundo en un archivo de `/run`.
 
 ### Compilación
 

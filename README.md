@@ -1,6 +1,6 @@
 # Smart Environmental Monitoring System
 
-Prototipo de **vigilancia microclimática para conservación preventiva de documentos en papel**, usando **STM32 (NUCLEO-L432KC)** y **Milk-V Duo S** en el curso de Linux embebido. Monitoriza un **gabinete documental pequeño**, no una bodega completa.
+Prototipo de **vigilancia microclimática para conservación preventiva de documentos en papel**, usando **STM32 (NUCLEO-L432KC o NUCLEO-L412KB)** y **Milk-V Duo S** en el curso de Linux embebido. Monitoriza un **gabinete documental pequeño**, no una bodega completa.
 
 ## Problema que resuelve
 
@@ -38,7 +38,7 @@ Las inspecciones ocasionales de temperatura y humedad no revelan qué ocurrió f
 
 ```
 docs/       Documentación: descripción, requerimientos, arquitectura, matriz, protocolo, manual, roles, uso de IA
-firmware/   Firmware del STM32 (NUCLEO-L432KC)
+firmware/   Firmware STM32 (NUCLEO-L432KC / NUCLEO-L412KB)
 linux/      Servicio en C para la Milk-V (src/, tests/)
 web/        Páginas estáticas de la interfaz web
 hardware/   Conexionado, lista de materiales, fotos y carcasa
@@ -74,6 +74,10 @@ El hardware se valida antes de construir el resto del software:
 4. Integración del sensor real.
 5. Funcionamiento continuo y pruebas de fallas.
 6. Integración final: web, carcasa, instrumentación, bring-up y factory reset.
+
+## Pruebas de firmware y enlace
+
+Ver [la guía de bring-up](docs/bringup-v0.md), [firmware/](firmware/) y [linux/](linux/). La utilidad de laboratorio `uart_probe` no reemplaza a `envmond`. No se deben utilizar datos sintéticos como mediciones del gabinete.
 
 ## Estado
 

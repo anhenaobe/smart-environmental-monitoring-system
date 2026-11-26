@@ -4,7 +4,7 @@
 
 | Elemento | Cantidad | Estado |
 |---|---|---|
-| NUCLEO-L432KC | 1 | Disponible |
+| NUCLEO-L432KC o NUCLEO-L412KB | 1 | Disponibilidad por confirmar |
 | Milk-V Duo S + microSD | 1 | _Por verificar_ |
 | Módulo SHT31 (o equivalente I²C) | 1 | _Por verificar_ |
 | LED verde + LED rojo + resistencias | 1 c/u | _Por verificar_ |
@@ -23,7 +23,11 @@ Antes de comprar se verifica qué componentes ya están disponibles.
 | UART RX | UART TX |
 | GND | GND |
 
-_Pines exactos por definir._ Las líneas de alimentación de las placas no se unen.
+Candidato de UART dedicada (verificar pinmux y dispositivo en Debian antes de conectar): J3 pin 11 (B11/UART2_TX) → PA10/D0; J3 pin 13 (B12/UART2_RX) ← PA9/D1; J3 pin 6 (GND) ↔ GND. J3 es de 3,3 V; **no usar J4** (1,8 V), ni J3 8/10 (consola UART0). Las líneas de alimentación de las placas no se unen.
+
+Consultar el mapa de SHT31, LED, pulsador y puentes de soldadura en [firmware/README.md](../firmware/README.md). La alternativa L412KB conserva el protocolo, pero requiere su propio binario. Verificar modelo y revisión impresos; no cargar el binario de una placa en la otra.
+
+Fuentes: [ST UM1956, tablas de pines Nucleo-32](https://www.st.com/resource/en/user_manual/um1956-stm32-nucleo32-boards-mb1180-stmicroelectronics.pdf), [Milk-V Duo S](https://milkv.io/docs/duo/getting-started/duos).
 
 ## Aplicación documental y posición del sensor
 
