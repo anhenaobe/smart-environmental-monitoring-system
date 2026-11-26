@@ -112,7 +112,7 @@ Fuera de alcance: CO₂, presión, calidad del aire, actuadores (ventiladores, r
 | ID | Requerimiento | Prioridad | Verif. | Pruebas |
 |---|---|---|---|---|
 | RNF-01 | El software de Linux se escribe en C y lee las métricas directamente de `/proc` y `/sys`, sin intérpretes (Python, Node) ni frameworks pesados. | Debe | I | PS-05 |
-| RNF-02 | El firmware se escribe en C para el NUCLEO-L432KC. | Debe | I | PS-05 |
+| RNF-02 | El firmware se escribe en C para el NUCLEO-L432KC o, como alternativa según disponibilidad, el NUCLEO-L412KB. Se valida la placa elegida. | Debe | I | PS-05 |
 | RNF-03 | El servicio Linux no tiene fugas de memoria (verificado con Valgrind en el build de host). | Debe | P | PI-11 |
 | RNF-04 | El sistema funciona sin intervención durante al menos 24 h continuas. | Debe | P | PS-01 |
 | RNF-05 | El sistema se alimenta con una sola fuente USB de 5 V. *(Confirmar si una fuente alimenta ambas placas o si se usan dos.)* | Debe | A | PS-06 |
@@ -123,7 +123,7 @@ Fuera de alcance: CO₂, presión, calidad del aire, actuadores (ventiladores, r
 | RNF-10 | Desde que se conecta la alimentación hasta que la web responde y los LED muestran el estado pasan ≤ 90 s. | Debería | P | PS-08 |
 | RNF-11 | En funcionamiento normal, `envmond` usa ≤ 8 MB de memoria residente y ≤ 5 % de CPU en promedio. | Debería | P | PS-09 |
 | RNF-12 | La web funciona sin conexión a internet (sin CDN ni recursos externos) y se ve correctamente en el navegador de un celular. | Debe | P | PS-10 |
-| RNF-13 | El firmware ocupa ≤ 50 % de la flash (256 KB) y ≤ 50 % de la RAM (64 KB) del STM32L432KC. | Debería | A | PS-11 |
+| RNF-13 | El firmware ocupa ≤ 50 % de la flash y ≤ 50 % de la RAM de la placa seleccionada (L432KC: 256/64 KiB; L412KB: 128/40 KiB). | Debería | A | PS-11 |
 
 ## 5. Trazabilidad con los elementos mínimos del curso
 
@@ -149,5 +149,5 @@ Fuera de alcance: CO₂, presión, calidad del aire, actuadores (ventiladores, r
 | Hash de la contraseña | `crypt()` de la libc con SHA-512 (`$6$`) o una biblioteca | `crypt()`: no agrega dependencias; confirmar que la libc de la imagen lo soporta | Mateo |
 | Aviso web → `envmond` | HTTP embebido en `envmond` o servicio separado con IPC | Si corre dentro de `envmond`, el manejador aplica la configuración sin `SIGHUP`; coordinar el contrato con Juan Fernando. | Mateo + Juan Fernando |
 | Valgrind y SystemTap en la Duo S | Disponibles en la imagen, o solo en el host | Verificar en el host x86 con puerto serie virtual (`socat`); en la placa usar `/proc/<pid>/status`, `strace` y `perf` si están | Juan Fernando |
-| Pines de la UART | UART1–UART3 del J3 de la Duo S (por pinmux) y USART1 del NUCLEO | No usar UART0 (pines 8 y 10 del J3): es la consola de Linux | PI-01 |
+| Pines de la UART | UART2 candidata (B11/B12, J3 11/13; por confirmar en Debian) y USART1 del NUCLEO | No usar UART0 (pines 8 y 10 del J3): es la consola de Linux | PI-01 |
 | Alimentación | Una fuente para las dos placas o dos fuentes | Medir el consumo (PS-06) antes de decidir | PS-06 |

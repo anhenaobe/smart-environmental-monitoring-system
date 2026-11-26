@@ -37,7 +37,7 @@ Resumen. El detalle (vistas lógica, física, de firmware y de software, diagram
 | Subsistema | Componente | Responsabilidades |
 |---|---|---|
 | Sensado | SHT31 (I²C) | Medición de temperatura y humedad |
-| Embebido | NUCLEO-L432KC | Adquisición, validación (CRC, rango), detección de fallas del sensor, watchdog, LED, botón de factory reset, protocolo UART, autoinstrumentación (tiempo de lazo, pila) |
+| Embebido | NUCLEO-L432KC o alternativa NUCLEO-L412KB (por validar) | Adquisición, validación (CRC, rango), detección de fallas del sensor, watchdog, LED, botón de factory reset, protocolo UART, autoinstrumentación (tiempo de lazo, pila) |
 | Linux | Milk-V Duo S | Servicio en C `envmond`: recepción y validación de tramas, agregación y registro, alarmas, configuración persistente, bring-up y factory reset, instrumentación, servidor web |
 | Usuario | Navegador + LED | Visualización, configuración inicial, ajustes, diagnóstico |
 
@@ -47,7 +47,7 @@ Resumen. El detalle (vistas lógica, física, de firmware y de software, diagram
 
 | Elemento | Función |
 |---|---|
-| NUCLEO-L432KC (STM32L432KC, 256 KB flash, 64 KB RAM) | Adquisición y firmware |
+| NUCLEO-L432KC (256 KB flash, 64 KB RAM) o NUCLEO-L412KB (128 KB flash, 40 KB RAM) | Adquisición y firmware; seleccionar según disponibilidad y pruebas |
 | Milk-V Duo S (SG2000, 512 MB RAM, Ethernet 100 Mbps) | Linux, registros e interfaz web |
 | Sensor SHT31 o equivalente | Temperatura y humedad (I²C) |
 | 2 LED (verde, rojo) + resistencias | Indicadores de estado |
