@@ -86,7 +86,7 @@ Las pruebas unitarias corren en el host (x86) sobre los módulos de lógica pura
 | PS-08 | RNF-10 | Tiempo de arranque (10 repeticiones) | Desde la conexión hasta que la web responde y los LED muestran estado: ≤ 90 s en las 10 | Andrew + Mateo | Juan Fernando | Cronómetro, `curl` en lazo desde el PC | Pendiente |
 | PS-09 | RNF-11 | Presupuesto de recursos de `envmond` durante 1 h | RSS ≤ 8 MB; CPU promedio ≤ 5 % | Mateo | Juan Fernando | `/proc/<pid>/status`, `top -b` | Pendiente |
 | PS-10 | RNF-12 | Web sin internet y en celular | Con el equipo y el celular aislados de internet, todas las páginas cargan completas; `grep` no encuentra URLs externas en `web/` | Juan Fernando | Mateo | Celular, navegador, `grep` | Pendiente |
-| PS-11 | RNF-13 | Tamaño del firmware | `arm-none-eabi-size`: flash ≤ 128 KB y RAM estática ≤ 32 KB | Andrew | Juan Fernando | `arm-none-eabi-size`, archivo `.map` | Pendiente |
+| PS-11 | RNF-13 | Tamaño del firmware | `arm-none-eabi-size`: flash ≤ 128 KiB y RAM estática ≤ 32 KiB para L432KC; flash ≤ 64 KiB y RAM estática ≤ 20 KiB para L412KB | Andrew | Juan Fernando | `arm-none-eabi-size`, archivo `.map` | Pendiente |
 
 ## 6. Herramientas de inspección
 
