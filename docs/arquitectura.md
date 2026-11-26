@@ -6,6 +6,8 @@ Este documento describe **cómo** se construye el sistema. El **qué** está en 
 
 Los diagramas están en Mermaid y GitHub los muestra directamente.
 
+> **Aplicación:** supervisión de un gabinete documental pequeño para conservación preventiva del papel. El perfil sugerido de **18–22 °C y 35–50 % HR** es editable; ver [criterios-conservacion.md](criterios-conservacion.md). Sin control climático ni validación física todavía.
+
 ## 1. Vistas
 
 | Vista | Pregunta que responde | Sección |

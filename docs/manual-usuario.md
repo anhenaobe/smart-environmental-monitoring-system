@@ -1,6 +1,6 @@
 # Manual de usuario
 
-Versión: 0.2 (borrador; se completa cuando la interfaz web esté implementada)
+Versión: 0.3 (borrador para conservación documental, pendiente de pruebas)
 
 ## 1. Contenido de la caja
 
@@ -26,11 +26,11 @@ Versión: 0.2 (borrador; se completa cuando la interfaz web esté implementada)
 2. Conecte la alimentación USB. Espere a que el LED verde parpadee despacio (aprox. 1 minuto).
 3. En un navegador, abra la dirección impresa en la etiqueta del equipo (`http://<por definir>`, ver RF-46).
 4. Complete el formulario:
-   - **Nombre del equipo:** por ejemplo, "Laboratorio 3".
+   - **Nombre del equipo:** por ejemplo, "Gabinete documental A".
    - **Contraseña de administrador:** la necesitará para cambiar la configuración más adelante.
    - **Hora / servidor NTP.**
    - **Intervalo de registro.**
-   - **Umbrales de alarma:** temperatura y humedad mínimas y máximas.
+   - **Umbrales de alarma:** temperatura y humedad mínimas y máximas. Perfil inicial sugerido **18–22 °C / 35–50 % HR**, **editable** según el tipo de documento. Las alarmas advierten desviaciones, no deterioro demostrado.
 5. Pulse **Guardar**. El LED verde queda fijo: el equipo está listo.
 
 ## 4. Uso diario
@@ -52,6 +52,7 @@ Si suelta el botón antes de 10 segundos, no se borra nada.
 
 ## 6. Ubicación recomendada
 
-- Lejos de fuentes de calor directo (sol, computadores, calentadores).
-- No obstruya las ranuras de ventilación de la carcasa.
-- No exponga el equipo al agua.
+- Ubique **la sonda** en el aire del gabinete que desea observar, a una altura representativa de los documentos y alejada de puertas, ventanas, rejillas, calentadores y condensación.
+- Mantenga la NUCLEO y la Milk-V fuera del gabinete o térmicamente separadas de la sonda; no bloquee la ventilación ni moje los circuitos.
+- Registre ubicación y compare la medición con un termohigrómetro de referencia. **Una sola sonda no sirve para caracterizar toda una bodega o varias cajas diferentes.**
+- Este equipo **monitorea, no corrige** las condiciones ambientales. Consulte [fuentes y límites](criterios-conservacion.md).
