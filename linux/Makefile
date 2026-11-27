@@ -4,11 +4,40 @@ CPPFLAGS ?=
 CFLAGS ?= -std=gnu11 -O2 -Wall -Wextra -Werror
 LDFLAGS ?=
 LDLIBS ?=
-.PHONY: all clean check
+
+# Pruebas unitarias con CMocka: metrics (PU-08 / RNF-03) y parser UART (PU-04..PU-06).
+TEST_CFLAGS = -std=c11 -g -Wall -Wextra -Werror -Isrc
+TEST_LDLIBS = -lcmocka
+TEST_SRC = src/metrics.c tests/test_metrics.c
+TEST_TARGET = tests/test_metrics
+PARSER_SRC = src/parser.c tests/test_parser.c
+PARSER_TARGET = tests/test_parser
+
+.PHONY: all clean check test valgrind test_parser
+
 all: uart_probe
+
 uart_probe: uart_probe.c ../firmware/src/env_protocol.c ../firmware/include/env_protocol.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) -I../firmware/include uart_probe.c ../firmware/src/env_protocol.c $(LDFLAGS) $(LDLIBS) -o $@
+
 check: uart_probe
 	python3 ../tests/test_uart_virtual.py
+
+$(TEST_TARGET): $(TEST_SRC) src/metrics.h
+	$(CC) $(TEST_CFLAGS) $(TEST_SRC) -o $@ $(TEST_LDLIBS)
+
+$(PARSER_TARGET): $(PARSER_SRC) src/parser.h
+	$(CC) $(TEST_CFLAGS) $(PARSER_SRC) -o $@ $(TEST_LDLIBS)
+
+test_parser: $(PARSER_TARGET)
+	./$(PARSER_TARGET)
+
+test: $(TEST_TARGET) test_parser
+	./$(TEST_TARGET)
+
+valgrind: $(TEST_TARGET) $(PARSER_TARGET)
+	valgrind --leak-check=full --error-exitcode=1 ./$(TEST_TARGET)
+	valgrind --leak-check=full --error-exitcode=1 ./$(PARSER_TARGET)
+
 clean:
-	rm -f uart_probe
+	rm -f uart_probe $(TEST_TARGET) $(PARSER_TARGET)

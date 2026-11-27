@@ -27,3 +27,7 @@ linux/uart_probe-*
 tests/test_protocol
 tests/test_firmware_control
 __pycache__/
+
+# Binarios de pruebas unitarias de linux/ (los fuentes test_*.c siguen versionados)
+linux/tests/test_*
+!linux/tests/test_*.*

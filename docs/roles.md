@@ -39,3 +39,4 @@ Participaciones en la matriz (una prueba compartida cuenta para cada implementad
 | 2026-11-13 | Mateo | Propuesta v0.2 de requerimientos, matriz de verificación, descripción y protocolo | PR #1 |
 | 2026-11-19 | Mateo | Arquitectura, índice de documentación y propuesta inicial de reparto | PR #2, primer commit |
 | 2026-11-19 | Andrew (asistencia de ChatGPT) | Ajuste de roles, verificación y arquitectura tras auditoría de PR #2 | PR #2, commit de seguimiento; revisión humana pendiente |
+| 2026-11-26 | Mateo | Parser UART de envmond y pruebas PU-04, PU-05 y PU-06, con asistencia de Claude Code | Rama feat/parser (PR pendiente de verificación por Juan Fernando) |
