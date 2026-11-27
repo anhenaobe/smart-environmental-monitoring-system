@@ -6,7 +6,7 @@ LDFLAGS ?=
 LDLIBS ?=
 
 # Pruebas unitarias con CMocka: metrics (PU-08 / RNF-03), parser UART (PU-04..PU-06)
-# y configuracion (PU-07, PU-14, PU-15).
+# configuracion (PU-07, PU-14, PU-15) y alarmas (PU-13).
 TEST_CFLAGS = -std=c11 -g -Wall -Wextra -Werror -Isrc
 TEST_LDLIBS = -lcmocka
 TEST_SRC = src/metrics.c tests/test_metrics.c
@@ -15,8 +15,10 @@ PARSER_SRC = src/parser.c tests/test_parser.c
 PARSER_TARGET = tests/test_parser
 CONFIG_SRC = src/config.c tests/test_config.c
 CONFIG_TARGET = tests/test_config
+ALARM_SRC = src/alarm.c tests/test_alarm.c
+ALARM_TARGET = tests/test_alarm
 
-.PHONY: all clean check test valgrind test_parser test_config
+.PHONY: all clean check test valgrind test_parser test_config test_alarm
 
 all: uart_probe
 
@@ -38,16 +40,23 @@ $(CONFIG_TARGET): $(CONFIG_SRC) src/config.h
 test_parser: $(PARSER_TARGET)
 	./$(PARSER_TARGET)
 
+$(ALARM_TARGET): $(ALARM_SRC) src/alarm.h src/parser.h
+	$(CC) $(TEST_CFLAGS) $(ALARM_SRC) -o $@ $(TEST_LDLIBS)
+
 test_config: $(CONFIG_TARGET)
 	./$(CONFIG_TARGET)
 
-test: $(TEST_TARGET) test_parser test_config
+test_alarm: $(ALARM_TARGET)
+	./$(ALARM_TARGET)
+
+test: $(TEST_TARGET) test_parser test_config test_alarm
 	./$(TEST_TARGET)
 
-valgrind: $(TEST_TARGET) $(PARSER_TARGET) $(CONFIG_TARGET)
+valgrind: $(TEST_TARGET) $(PARSER_TARGET) $(CONFIG_TARGET) $(ALARM_TARGET)
 	valgrind --leak-check=full --error-exitcode=1 ./$(TEST_TARGET)
 	valgrind --leak-check=full --error-exitcode=1 ./$(PARSER_TARGET)
 	valgrind --leak-check=full --error-exitcode=1 --trace-children=yes ./$(CONFIG_TARGET)
+	valgrind --leak-check=full --error-exitcode=1 ./$(ALARM_TARGET)
 
 clean:
-	rm -f uart_probe $(TEST_TARGET) $(PARSER_TARGET) $(CONFIG_TARGET)
+	rm -f uart_probe $(TEST_TARGET) $(PARSER_TARGET) $(CONFIG_TARGET) $(ALARM_TARGET)
