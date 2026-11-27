@@ -40,3 +40,4 @@ Participaciones en la matriz (una prueba compartida cuenta para cada implementad
 | 2026-11-19 | Mateo | Arquitectura, índice de documentación y propuesta inicial de reparto | PR #2, primer commit |
 | 2026-11-19 | Andrew (asistencia de ChatGPT) | Ajuste de roles, verificación y arquitectura tras auditoría de PR #2 | PR #2, commit de seguimiento; revisión humana pendiente |
 | 2026-11-26 | Mateo | Parser UART de envmond y pruebas PU-04, PU-05 y PU-06, con asistencia de Claude Code | Rama feat/parser (PR pendiente de verificación por Juan Fernando) |
+| 2026-11-27 | Mateo | Fase A de `envmond`: módulos `config`, `alarm` y `logger` y pruebas PU-07, PU-09, PU-11, PU-13, PU-14 y PU-15, con asistencia de Claude Code; guía de estudio `docs/guia-envmond.md` | Rama `feat/envmond-logica` (PR pendiente de verificación por Andrew y Juan Fernando) |
