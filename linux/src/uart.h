@@ -12,7 +12,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#define UART_RUTA_MAX 128u
+#define UART_RUTA_MAX 256u
 #define UART_TX_MAX   512u   /* ~15 tramas SYS/ACK pendientes */
 
 typedef struct {
