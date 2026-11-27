@@ -1,10 +1,8 @@
 # Protocolo de comunicación UART STM32 ↔ Milk-V Duo S
 
-Versión: 0.3 (borrador). Cambios frente a 0.2, acordado entre Andrew (STM32) y Mateo (Linux), 2026-11-26: anchos de los campos de `STA`, `hr` ≤ 10000, reglas de detección de tramas perdidas y reinicios por `seq` (§3) y clasificación de errores de recepción (§2). Ninguna trama cambia de formato.
+Versión: 0.3 (borrador). Cambios frente a 0.2, acordado entre Andrew (STM32) y Mateo (Linux), 2026-11-26: anchos de los campos de `STA`, `hr` ≤ 10000, reglas de detección de tramas perdidas y reinicios por `seq` (§3) y clasificación de errores de recepción (§2), y adaptación al DHT11 (`ENV` cada 3 s en modo normal, nuevo significado de los estados 1, 2 y 3 y de `err_i2c`), sin cambio de formato.
 
 Cambios de 0.2 frente a 0.1: `STA` agrega `lazo_max_us` y `pila_libre_b` (RF-07). Los checksums de todos los ejemplos se recalcularon con un script.
-
-**Nota de revisión DHT11:** cambio de cadencia y semántica del sensor (sin cambio del formato en el cable), pendiente de coordinación con la revisión v0.3 de Mateo.
 
 Este documento es la única definición válida del protocolo. Cualquier cambio en el firmware o en el servicio Linux debe reflejarse primero aquí, y lo acuerdan quien implementa el firmware y quien implementa el servicio Linux.
 
@@ -104,7 +102,7 @@ $STA,<uptime_s>,<err_i2c>,<causa_reset>,<fw>,<lazo_max_us>,<pila_libre_b>*<CS>
 | Campo | Descripción |
 |---|---|
 | `uptime_s` | 1 a 10 dígitos decimales (valor ≤ 4294967295): segundos desde el último arranque del STM32 |
-| `err_i2c` | 1 a 10 dígitos decimales (valor ≤ 4294967295): errores I²C acumulados desde el arranque |
+| `err_i2c` | 1 a 10 dígitos decimales (valor ≤ 4294967295): fallas de comunicación del sensor (estados 1 y 2) acumuladas desde el arranque. Nombre legado de compatibilidad; el DHT11 no usa I²C. |
 | `causa_reset` | 1 dígito, 0–4. Leída de `RCC_CSR`: 0 = encendido/BOR, 1 = pin NRST, 2 = watchdog IWDG, 3 = software, 4 = otra |
 | `fw` | Versión del firmware, `MAJ.MIN.PAT`: tres números decimales de al menos un dígito separados por `.`, con un máximo de 11 caracteres (por ejemplo `0.2.0` o `10.200.3000`). *(Propuesta v0.3, pendiente de confirmar por Andrew en la revisión del PR.)* |
 | `lazo_max_us` | 5 dígitos exactos: duración máxima de una iteración del lazo principal desde el último `STA`, en µs (medida con un temporizador o DWT `CYCCNT`); se satura en 99999. Se reinicia tras cada envío. *(v0.2, RF-07)* |
