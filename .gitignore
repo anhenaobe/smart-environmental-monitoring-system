@@ -26,6 +26,8 @@ linux/uart_probe
 linux/uart_probe-*
 tests/test_protocol
 tests/test_firmware_control
+tests/test_dht11
+tests/test_dht11_parser_compat
 __pycache__/
 
 # Binarios de pruebas unitarias de linux/ (los fuentes test_*.c siguen versionados)

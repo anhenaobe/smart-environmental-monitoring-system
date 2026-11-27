@@ -1,9 +1,10 @@
-/* Smart Environmental Monitor v0.2.0.
+/* Smart Environmental Monitor v0.3.0 — DHT11.
  * Shared by NUCLEO-L432KC and NUCLEO-L412KB; see firmware/README.md.
  * USART1 is the data UART, NOT the USB ST-LINK VCP.
  */
 #include "stm32l4xx_hal.h"
 #include "env_control.h"
+#include "env_dht11.h"
 #include "env_protocol.h"
 
 #include <stdio.h>
@@ -13,41 +14,37 @@
 #error "Select the nucleo_l432kc or nucleo_l412kb build environment"
 #endif
 
-#ifndef SHT31_ADDR
-#define SHT31_ADDR 0x44u
-#endif
-#if SHT31_ADDR != 0x44u && SHT31_ADDR != 0x45u
-#error "SHT31_ADDR is a 7-bit I2C address (0x44 or 0x45)"
-#endif
-#define SENSOR_ADDR ((uint16_t)(SHT31_ADDR << 1))
-/* HSI16 I2C kernel, PRESC=3 (250 ns), SCLDEL=4 (1.25 us),
- * SDADEL=1 (250 ns), SCLH=20 (5.25 us), SCLL=23 (6 us).
- * Conservative standard-mode (<100 kHz), analog filter enabled.
- * Real rise/fall times and clocks must still be measured. */
-#define I2C1_TIMING 0x30411417u
 #if defined(SEM_SYNTH_SENSOR)
-#define FW_VERSION "0.2.90" /* Explicit synthetic-only test image. */
+#define FW_VERSION "0.3.90" /* Explicit synthetic-only test image. */
 #elif defined(SEM_WATCHDOG_TEST)
-#define FW_VERSION "0.2.91" /* Explicit one-shot watchdog test image. */
+#define FW_VERSION "0.3.91" /* Explicit one-shot watchdog test image. */
 #else
-#define FW_VERSION "0.2.0"
+#define FW_VERSION "0.3.0"
 #endif
 #define RX_Q_SIZE 128u
 #define STACK_PATTERN 0xA5C39E71u
 #define GREEN_PIN GPIO_PIN_3 /* PB3, LD3/D13, active high */
 #define RED_PIN GPIO_PIN_0   /* PB0, D3, external, active high */
 #define BUTTON_PIN GPIO_PIN_12 /* PA12, D2, external, active low */
+#define DHT_PIN GPIO_PIN_5    /* PB5, D11, CN3.14, open drain */
+#define CPU_CYCLES_PER_US 16u
+#define DHT_START_US 20000u
+#define DHT_MAX_START_US 30000u
+#define DHT_SAMPLE_MS 3000u
+#define DHT_STARTUP_MS 2000u
 
 static UART_HandleTypeDef huart1;
-static I2C_HandleTypeDef hi2c1;
 static volatile uint8_t rx_q[RX_Q_SIZE];
 static volatile uint8_t rx_head, rx_tail;
 static uint8_t rx_byte;
 static volatile bool rx_overflow;
 static env_rx_t uart_parser;
 static env_control_t control;
-static uint32_t next_sample_ms, conversion_started_ms, serial_seq, i2c_errors;
-static bool measurement_pending;
+static uint32_t next_sample_ms, serial_seq, sensor_errors;
+#ifndef SEM_SYNTH_SENSOR
+static uint32_t dht_start_cycle;
+static bool dht_start_pending;
+#endif
 static uint32_t uptime_s, uptime_ms, last_tick_ms, last_sta_ms, loop_max_us;
 static uint8_t reset_cause;
 #ifdef SEM_WATCHDOG_TEST
@@ -102,11 +99,7 @@ static void led_init(void) {
     g.Pull = GPIO_PULLUP;
     HAL_GPIO_Init(GPIOA, &g);
 
-    /* SB16/SB18 can short PA6/PA5 to PB6/PB7 on Nucleo-32.
-     * Do not drive those pins or enable their pull resistors. */
-    g.Pin = GPIO_PIN_5 | GPIO_PIN_6;
-    g.Pull = GPIO_NOPULL;
-    HAL_GPIO_Init(GPIOA, &g);
+
 }
 
 static void fail_blink(void) {
@@ -139,6 +132,10 @@ static void clock_init(void) {
     CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
     DWT->CYCCNT = 0u;
     DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+    const uint32_t before = DWT->CYCCNT;
+    __NOP();
+    __NOP();
+    if (DWT->CYCCNT == before) fail_blink();
 }
 
 static uint8_t capture_reset_cause(void) {
@@ -185,19 +182,6 @@ void HAL_UART_MspInit(UART_HandleTypeDef *h) {
     HAL_NVIC_EnableIRQ(USART1_IRQn);
 }
 
-void HAL_I2C_MspInit(I2C_HandleTypeDef *h) {
-    if (h->Instance != I2C1) return;
-    __HAL_RCC_GPIOB_CLK_ENABLE();
-    __HAL_RCC_I2C1_CLK_ENABLE();
-    GPIO_InitTypeDef g = {0};
-    g.Pin = GPIO_PIN_6 | GPIO_PIN_7;
-    g.Mode = GPIO_MODE_AF_OD;
-    g.Pull = GPIO_NOPULL; /* External pull-ups to 3.3 V are required. */
-    g.Speed = GPIO_SPEED_FREQ_HIGH;
-    g.Alternate = GPIO_AF4_I2C1;
-    HAL_GPIO_Init(GPIOB, &g);
-}
-
 static void uart_init(void) {
     huart1.Instance = USART1;
     huart1.Init.BaudRate = 115200;
@@ -210,39 +194,6 @@ static void uart_init(void) {
     if (HAL_UART_Init(&huart1) != HAL_OK) fail_blink();
     env_rx_init(&uart_parser);
     if (HAL_UART_Receive_IT(&huart1, &rx_byte, 1u) != HAL_OK) fail_blink();
-}
-
-static bool i2c_configure(void) {
-    hi2c1.Instance = I2C1;
-    hi2c1.Init.Timing = I2C1_TIMING;
-    hi2c1.Init.OwnAddress1 = 0;
-    hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
-    hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
-    hi2c1.Init.OwnAddress2 = 0;
-    hi2c1.Init.OwnAddress2Masks = I2C_OA2_NOMASK;
-    hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
-    hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
-    return HAL_I2C_Init(&hi2c1) == HAL_OK &&
-           HAL_I2CEx_ConfigAnalogFilter(&hi2c1, I2C_ANALOGFILTER_ENABLE) == HAL_OK &&
-           HAL_I2CEx_ConfigDigitalFilter(&hi2c1, 0) == HAL_OK;
-}
-
-static void i2c_init(void) {
-    RCC_PeriphCLKInitTypeDef clk = {0};
-    clk.PeriphClockSelection = RCC_PERIPHCLK_I2C1;
-    clk.I2c1ClockSelection = RCC_I2C1CLKSOURCE_SYSCLK;
-    if (HAL_RCCEx_PeriphCLKConfig(&clk) != HAL_OK) fail_blink();
-    if (!i2c_configure()) fail_blink();
-}
-
-static void i2c_recover(void) {
-    /* Reset the MCU peripheral after a transport failure, so the next
-     * scheduled sample can recover when the sensor is reconnected. This
-     * does not guarantee recovery from a physically shorted/stuck bus. */
-    (void)HAL_I2C_DeInit(&hi2c1);
-    __HAL_RCC_I2C1_FORCE_RESET();
-    __HAL_RCC_I2C1_RELEASE_RESET();
-    (void)i2c_configure();
 }
 
 void USART1_IRQHandler(void) { HAL_UART_IRQHandler(&huart1); }
@@ -315,67 +266,144 @@ static void report_measurement(uint8_t error, int32_t tc, uint16_t rh) {
     serial_seq = (serial_seq + 1u) % 100000000u;
 }
 
-static void i2c_failure(void) {
-    ++i2c_errors;
-    i2c_recover();
-    report_measurement(1u, 0, 0); /* transport error / sensor unavailable */
+#ifndef SEM_SYNTH_SENSOR
+static void dht_init(void) {
+    /* In open-drain output mode a written 1 releases the wire; IDR
+     * remains readable. The external 4.7k pull-up goes to 3.3 V. */
+    HAL_GPIO_WritePin(GPIOB, DHT_PIN, GPIO_PIN_SET);
+    GPIO_InitTypeDef g = {0};
+    g.Pin = DHT_PIN;
+    g.Mode = GPIO_MODE_OUTPUT_OD;
+    g.Pull = GPIO_NOPULL;
+    g.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(GPIOB, &g);
 }
+
+/* DWT is running at HSI16. Subtraction is safe across the 32-bit
+ * wrap; each call has a hard deadline (~120 us). The GPIO read stays
+ * inline, and UART/SysTick interrupts remain enabled so SYS/ACK can
+ * still arrive. Severe timing interference is a rejected observation. */
+static bool dht_wait_level(bool high, uint32_t timeout_us, uint32_t *edge) {
+    const uint32_t start = DWT->CYCCNT;
+    const uint32_t timeout_cycles = timeout_us * CPU_CYCLES_PER_US;
+    for (;;) {
+        const uint32_t now = DWT->CYCCNT;
+        if (now - start >= timeout_cycles) return false;
+        if (((GPIOB->IDR & DHT_PIN) != 0u) == high) {
+            *edge = now;
+            return true;
+        }
+    }
+}
+
+static uint32_t dht_width_us(uint32_t a, uint32_t b) {
+    return (b - a) / CPU_CYCLES_PER_US;
+}
+
+static bool dht_read_frame(uint8_t data[5]) {
+    uint32_t rise, fall, next_rise;
+    /* Start low was generated asynchronously; release immediately before
+     * polling for the response. Never drive high against the sensor. */
+    /* Do not miss the short idle-high gap (nominal 10..20 us) just
+     * after release because of a UART ISR. The IRQ-masked section is
+     * bounded to 45 us even on a stuck bus; all data pulses are read
+     * with interrupts enabled (115200 8N1 byte period is 86.8 us). */
+    const uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    GPIOB->BSRR = DHT_PIN;
+    const bool released_high = dht_wait_level(true, 45u, &rise);
+    __set_PRIMASK(primask);
+    if (!released_high || !dht_wait_level(false, 120u, &fall) ||
+        !dht_wait_level(true, 120u, &next_rise))
+        return false;
+    uint32_t width = dht_width_us(fall, next_rise);
+    if (width < 55u || width > 115u) return false;   /* response low */
+
+    rise = next_rise;
+    if (!dht_wait_level(false, 120u, &fall)) return false;
+    width = dht_width_us(rise, fall);
+    if (width < 55u || width > 115u) return false;   /* response high */
+
+    for (unsigned i = 0; i < 40u; ++i) {
+        if (!dht_wait_level(true, 120u, &rise)) return false;
+        width = dht_width_us(fall, rise);
+        if (width < 25u || width > 85u) return false; /* bit low */
+        if (!dht_wait_level(false, 120u, &fall)) return false;
+        const int bit = env_dht11_bit(dht_width_us(rise, fall));
+        if (bit < 0) return false;
+        const unsigned k = i / 8u;
+        data[k] = (uint8_t)((data[k] << 1) | (unsigned)bit);
+    }
+
+    /* Verify the final low and release. A bus stuck at LOW must not
+     * produce an apparent valid last bit plus valid checksum. */
+    if (!dht_wait_level(true, 120u, &rise)) return false;
+    width = dht_width_us(fall, rise);
+    return width >= 25u && width <= 85u;
+}
+
+static void report_sensor_result(dht11_status_t status, int32_t tc, uint16_t rh) {
+    /* Wire field err_i2c is a legacy name; with DHT11 it counts
+     * communication errors (timeout/timing and checksum). */
+    if ((status == DHT11_TIMEOUT || status == DHT11_BAD_CHECKSUM) &&
+        sensor_errors != UINT32_MAX) ++sensor_errors;
+    report_measurement((uint8_t)status, tc, rh);
+}
+#endif
 
 static void sensor_task(uint32_t now) {
 #ifdef SEM_SYNTH_SENSOR
-    /* Never present this test image as a real sensor measurement. */
+    /* Synthetic diagnostic mode has no GPIO acquisition. UART at 1 Hz. */
     if ((int32_t)(now - next_sample_ms) >= 0) {
         next_sample_ms += 1000u;
         if ((int32_t)(now - next_sample_ms) >= 0) next_sample_ms = now + 1000u;
         report_measurement(0u, 2150, 4500u);
     }
-    return;
-#endif
-    if (!measurement_pending && (int32_t)(now - next_sample_ms) >= 0) {
-        /* Keep an absolute 1 Hz schedule without a burst of catch-up samples. */
-        next_sample_ms += 1000u;
-        if ((int32_t)(now - next_sample_ms) >= 0) next_sample_ms = now + 1000u;
-        uint8_t cmd[2] = {0x24u, 0x00u}; /* high repeatability, no stretching */
-        if (HAL_I2C_Master_Transmit(&hi2c1, SENSOR_ADDR, cmd, 2u, 10u) != HAL_OK) {
-            i2c_failure();
-            return;
+#else
+    if (!dht_start_pending) {
+        if ((int32_t)(now - next_sample_ms) < 0) return;
+
+        /* Rebase at the actual start; never catch up with closely spaced
+         * reads after a delayed loop. Every trigger is >=3 s apart. */
+        next_sample_ms = now + DHT_SAMPLE_MS;
+        if (!(GPIOB->IDR & DHT_PIN)) {
+            report_sensor_result(DHT11_TIMEOUT, 0, 0);
+            return; /* short, missing pull-up, or sensor holding the line */
         }
-        conversion_started_ms = HAL_GetTick();
-        measurement_pending = true;
-        /* A stale now earlier than conversion_started_ms would underflow;
-         * defer receive to a future iteration after the 20 ms wait. */
+        GPIOB->BSRR = (uint32_t)DHT_PIN << 16;
+        dht_start_cycle = DWT->CYCCNT;
+        dht_start_pending = true;
         return;
     }
 
-    if (!measurement_pending || now - conversion_started_ms < 20u) return;
-    uint8_t data[6] = {0};
-    measurement_pending = false;
-    if (HAL_I2C_Master_Receive(&hi2c1, SENSOR_ADDR, data, 6u, 10u) != HAL_OK) {
-        i2c_failure();
+    /* 18..30 ms START low is nonblocking for the 1 Hz heartbeat, LEDs,
+     * and button. Only the subsequent edge capture occupies the loop. */
+    const uint32_t elapsed_us = (DWT->CYCCNT - dht_start_cycle) / CPU_CYCLES_PER_US;
+    if (elapsed_us < DHT_START_US) return;
+    dht_start_pending = false;
+    if (elapsed_us >= DHT_MAX_START_US) {
+        GPIOB->BSRR = DHT_PIN;
+        report_sensor_result(DHT11_TIMEOUT, 0, 0);
         return;
     }
-    if (env_sht_crc8(data, 2u) != data[2] || env_sht_crc8(data + 3, 2u) != data[5]) {
-        report_measurement(2u, 0, 0);
+
+    uint8_t frame[5] = {0};
+    if (!dht_read_frame(frame)) {
+        report_sensor_result(DHT11_TIMEOUT, 0, 0);
         return;
     }
-    const uint16_t rt = ((uint16_t)data[0] << 8) | data[1];
-    const uint16_t rrh = ((uint16_t)data[3] << 8) | data[4];
-    const int32_t tc = env_temp_centi(rt);
-    const uint16_t rh = env_humidity_centi(rrh);
-    /* SHT31 operating T range -40 .. +125 C; transfer function spans
-     * -45 .. +130 C, hence the explicit physical-range check. */
-    if (tc < -4000 || tc > 12500 || rh > 10000u) {
-        report_measurement(3u, 0, 0);
-        return;
-    }
-    report_measurement(0u, tc, rh);
+    int32_t tc = 0;
+    uint16_t rh = 0;
+    const dht11_status_t status = env_dht11_decode(frame, &tc, &rh);
+    report_sensor_result(status, tc, rh);
+#endif
 }
 
 static void report_status(void) {
     char payload[ENV_MAX_FRAME + 1u];
     const uint32_t stack = stack_free_bytes();
     (void)snprintf(payload, sizeof(payload), "STA,%08lu,%lu,%u,%s,%05lu,%05lu",
-                   (unsigned long)uptime_s, (unsigned long)i2c_errors,
+                   (unsigned long)uptime_s, (unsigned long)sensor_errors,
                    (unsigned)reset_cause, FW_VERSION, (unsigned long)loop_max_us,
                    (unsigned long)stack);
     tx_payload(payload);
@@ -398,10 +426,17 @@ int main(void) {
     clock_init();
     watchdog_start();
     uart_init();
-    i2c_init();
+#ifndef SEM_SYNTH_SENSOR
+    dht_init();
+#endif
 
     const uint32_t start = HAL_GetTick();
-    last_tick_ms = last_sta_ms = next_sample_ms = start;
+    last_tick_ms = last_sta_ms = start;
+#ifdef SEM_SYNTH_SENSOR
+    next_sample_ms = start;
+#else
+    next_sample_ms = start + DHT_STARTUP_MS;
+#endif
     env_control_init(&control, start);
     report_status(); /* At boot, before the first measurement. */
 
@@ -416,13 +451,21 @@ int main(void) {
         sensor_task(HAL_GetTick());
 
         now = HAL_GetTick();
-        if (env_control_button(&control, HAL_GPIO_ReadPin(GPIOA, BUTTON_PIN) == GPIO_PIN_RESET, now))
+        /* While START is low, do not start a blocking BTN/STA TX that
+         * could extend the pulse past 30 ms. At most ~20 ms deferral,
+         * shorter than button debounce; UART RX and LED stay active. */
+#ifdef SEM_SYNTH_SENSOR
+        const bool can_tx = true;
+#else
+        const bool can_tx = !dht_start_pending;
+#endif
+        if (can_tx && env_control_button(&control, HAL_GPIO_ReadPin(GPIOA, BUTTON_PIN) == GPIO_PIN_RESET, now))
             tx_payload("BTN,RST");
         const env_leds_t led = env_control_leds(&control, now);
         HAL_GPIO_WritePin(GPIOB, GREEN_PIN, led.green ? GPIO_PIN_SET : GPIO_PIN_RESET);
         HAL_GPIO_WritePin(GPIOB, RED_PIN, led.red ? GPIO_PIN_SET : GPIO_PIN_RESET);
 
-        if (now - last_sta_ms >= 10000u) {
+        if (can_tx && now - last_sta_ms >= 10000u) {
             last_sta_ms = now;
             report_status();
         }
@@ -440,7 +483,7 @@ int main(void) {
 #endif
         /* Refresh only at the end of a completed loop (never in an ISR). */
         IWDG->KR = 0xAAAAu;
-        const uint32_t elapsed_us = (DWT->CYCCNT - cycle_start) / 16u;
+        const uint32_t elapsed_us = (DWT->CYCCNT - cycle_start) / CPU_CYCLES_PER_US;
         if (elapsed_us > loop_max_us)
             loop_max_us = elapsed_us > 99999u ? 99999u : elapsed_us;
 #ifdef SEM_TRACE_LOOP

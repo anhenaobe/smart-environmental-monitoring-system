@@ -1,6 +1,6 @@
 # Análisis de requerimientos
 
-Versión: 0.3 (adaptación a conservación documental, revisión del equipo pendiente)
+Versión: 0.4 (propuesta de adaptación al DHT11, revisión del equipo pendiente)
 
 Cada requerimiento tiene un identificador único que se usa en la [matriz de verificación](matriz-verificacion.md). Los marcados como **(curso)** cubren los elementos mínimos que exige el enunciado.
 
@@ -9,11 +9,11 @@ Cada requerimiento tiene un identificador único que se usa en la [matriz de ver
 
 ## 1. Alcance
 
-Incluido: seguimiento del **aire en un solo gabinete documental pequeño** con SHT31; medición de temperatura y humedad relativa, registro histórico, interfaz web local, indicadores LED, bring-up, factory reset, instrumentación y carcasa. Perfil de umbrales **sugerido y editable**: 18–22 °C y 35–50 % HR ([fuentes](criterios-conservacion.md)).
+Incluido: seguimiento del **aire en un solo gabinete documental pequeño** con DHT11; medición de temperatura y humedad relativa, registro histórico, interfaz web local, indicadores LED, bring-up, factory reset, instrumentación y carcasa. Perfil de umbrales **sugerido y editable**: 18–22 °C y 35–50 % HR ([fuentes](criterios-conservacion.md)).
 
 Fuera de alcance: CO₂, presión, calidad del aire, actuadores (ventiladores, relés), nube, aplicación móvil, notificaciones externas, batería, control climático, humedad interna del papel, detección de moho o deterioro y representar diferentes zonas con una única sonda.
 
-**Justificación:** NEDCC 2.1 y Library of Congress sustentan el perfil sugerido; NEDCC 2.2 sustenta la monitorización, sin establecer un intervalo universal. 1 Hz (RF-01), 60 s de registro (RF-21), 5 lecturas y 0,5 °C / 2 puntos HR de histéresis (RF-24) son **decisiones de ingeniería**, no límites normativos. La tolerancia RNF-07 no permite garantizar condiciones reales cerca del umbral: [criterios-conservacion.md](criterios-conservacion.md).
+**Justificación:** NEDCC 2.1 y Library of Congress sustentan el perfil sugerido; NEDCC 2.2 sustenta la monitorización, sin establecer un intervalo universal. 3 s en modo normal DHT11 V1.3 (RF-01), 60 s de registro (RF-21), 5 lecturas y 0,5 °C / 2 puntos HR de histéresis (RF-24) son **decisiones de ingeniería**, no límites normativos. La tolerancia RNF-07 no permite garantizar condiciones reales cerca del umbral: [criterios-conservacion.md](criterios-conservacion.md).
 ## 2. Actores y casos de uso
 
 | Actor | Descripción |
@@ -34,14 +34,16 @@ Fuera de alcance: CO₂, presión, calidad del aire, actuadores (ventiladores, r
 
 ## 3. Requerimientos funcionales
 
+**Cambio de sensor (propuesta de revisión):** RF-01/02/03/04/63 y RNF-07 se adaptan al DHT11 disponible. Se mantiene el contrato de campos UART/HTTP; los nuevos tiempos, tolerancias y su aceptación requieren revisión cruzada y ensayos físicos. RF-24 conserva la histéresis definida, cuya utilidad con la resolución real del DHT11 debe comprobarse. RF-25 mantiene 5 s desde la última medición válida; una trama explícitamente inválida invalida de inmediato.
+
 ### Sensado y firmware (STM32)
 
 | ID | Requerimiento | Prioridad | Verif. | Pruebas |
 |---|---|---|---|---|
-| RF-01 | El STM32 mide temperatura y humedad relativa con un sensor I²C (SHT31 o equivalente) una vez por segundo. **(curso)** | Debe | P | PU-02, PI-02 |
-| RF-02 | El STM32 verifica el CRC de cada lectura del sensor y descarta las lecturas inválidas. | Debe | P | PU-01 |
-| RF-03 | El STM32 detecta en ≤ 2 s que el sensor no responde, lo reporta (estado ≠ 0) y reintenta la comunicación sin reiniciarse. | Debe | P | PI-05 |
-| RF-04 | Al reconectar el sensor, el STM32 vuelve a entregar lecturas válidas en ≤ 2 s, sin intervención del usuario. | Debe | P | PI-05 |
+| RF-01 | El STM32 mide temperatura y humedad relativa con un DHT11 V1.3 cada 3 s (modo normal); modo sintético de ensayo a 1 Hz sin sensor. **(curso)** | Debe | P | PU-02, PI-02 |
+| RF-02 | El STM32 verifica la suma de comprobación de los cuatro bytes del DHT11, el formato y el rango; las lecturas inválidas se señalan sin valores numéricos. | Debe | P | PU-01 |
+| RF-03 | El STM32 detecta en ≤ 4 s que el sensor no responde, lo reporta (estado ≠ 0) y reintenta la comunicación sin reiniciarse. | Debe | P | PI-05 |
+| RF-04 | Al reconectar el sensor, el STM32 vuelve a entregar lecturas válidas en ≤ 7 s, sin intervención del usuario. | Debe | P | PI-05 |
 | RF-05 | El STM32 tiene un watchdog independiente (IWDG) que lo reinicia si el lazo principal se bloquea, y reporta la causa del último reset. | Debe | P | PI-06 |
 | RF-06 | El STM32 sigue midiendo y transmitiendo aunque no reciba latido de Linux. | Debe | P | PI-12 |
 | RF-07 | El STM32 reporta en `STA` su propia instrumentación: tiempo máximo de una iteración del lazo principal y pila libre mínima observada. | Debería | P | PI-16 |
@@ -63,8 +65,8 @@ Fuera de alcance: CO₂, presión, calidad del aire, actuadores (ventiladores, r
 | RF-21 | El servicio guarda en almacenamiento persistente el promedio, el mínimo y el máximo de cada intervalo de registro (60 s por defecto, configurable entre 60 y 3600 s). | Debe | P | PU-09 |
 | RF-22 | Los registros rotan a diario y se conserva una cantidad configurable de días (7 por defecto, de 1 a 30). | Debería | P | PU-11 |
 | RF-23 | El servicio compara mediciones válidas con los límites **configurados para el gabinete** y señala una **desviación ambiental** en la web y los LED; no declara daño documental. | Debe | P | PI-09 |
-| RF-24 | La alarma se activa cuando la variable lleva 5 lecturas consecutivas fuera de rango y se desactiva cuando vuelve al rango con una histéresis de 0,5 °C o 2 % HR, para evitar que parpadee en el límite. | Debería | P | PU-13 |
-| RF-25 | Si no hay una medición válida en los últimos 5 s, la web muestra "sin datos" en lugar del último valor. | Debe | P | PI-05 |
+| RF-24 | La alarma se activa cuando la variable lleva 5 lecturas nuevas, válidas y consecutivas fuera de rango (≈12–15 s a 3 s; una interrupción de la racha impide contarla como consecutiva) y se desactiva cuando vuelve al rango con una histéresis de 0,5 °C o 2 % HR, para evitar que parpadee en el límite. | Debería | P | PU-13 |
+| RF-25 | Si llega una ENV inválida o no hay una nueva medición válida en los últimos 5 s, la web muestra "sin datos" en lugar del último valor. | Debe | P | PI-05 |
 
 ### Interfaz de usuario
 
@@ -104,7 +106,7 @@ Fuera de alcance: CO₂, presión, calidad del aire, actuadores (ventiladores, r
 | RF-60 | La página de diagnóstico muestra el uso de CPU, el uso de memoria y el espacio libre en el almacenamiento, y se actualiza cada ≤ 2 s. | Debe | P | PU-08, PI-10 |
 | RF-61 | La página de diagnóstico muestra los bytes de red de entrada y salida por interfaz, y los puertos TCP/UDP en escucha con el proceso que los usa. | Debe | P | PU-08, PI-10 |
 | RF-62 | La página de diagnóstico muestra el acceso a periféricos: bytes y tramas UART recibidas y enviadas, errores de checksum y de trama, tramas perdidas y tiempo desde la última trama. | Debe | P | PU-05, PI-10 |
-| RF-63 | La página de diagnóstico muestra los datos del STM32: uptime, errores I²C, causa del último reset, versión de firmware y la instrumentación de RF-07. | Debe | P | PI-10, PI-16 |
+| RF-63 | La página de diagnóstico muestra los datos del STM32: uptime, fallas de comunicación del DHT11 (estados 1 y 2) (campo legado `err_i2c`), causa del último reset, versión de firmware y la instrumentación de RF-07. | Debe | P | PI-10, PI-16 |
 | RF-64 | La página de diagnóstico muestra el consumo del propio `envmond`: memoria residente (RSS), CPU y descriptores abiertos. | Debería | P | PI-15 |
 
 ## 4. Requerimientos no funcionales
@@ -116,8 +118,8 @@ Fuera de alcance: CO₂, presión, calidad del aire, actuadores (ventiladores, r
 | RNF-03 | El servicio Linux no tiene fugas de memoria (verificado con Valgrind en el build de host). | Debe | P | PI-11 |
 | RNF-04 | El sistema funciona sin intervención durante al menos 24 h continuas. | Debe | P | PS-01 |
 | RNF-05 | El sistema se alimenta con una sola fuente USB de 5 V. *(Confirmar si una fuente alimenta ambas placas o si se usan dos.)* | Debe | A | PS-06 |
-| RNF-06 | El calor de las placas no sesga la medición más de 0,5 °C (sensor separado o en zona ventilada). | Debe | P | PS-03 |
-| RNF-07 | La temperatura difiere de un instrumento de referencia en menos de ±1 °C y la humedad en menos de ±5 % HR, en condiciones de laboratorio. *(Tolerancia por confirmar con el instrumento disponible.)* | Debe | P | PS-02 |
+| RNF-06 | El calor de las placas no sesga la medición más de 0,5 °C (sensor separado o en zona ventilada); verificar con instrumento de referencia de resolución e incertidumbre adecuadas, no solo con DHT11. | Debe | P | PS-03 |
+| RNF-07 | Objetivo de ensayo provisional con DHT11: diferencia absoluta ≤2 °C y ≤5 puntos porcentuales de HR frente a instrumento de referencia, en condiciones de laboratorio documentadas. No es garantía de exactitud a cualquier temperatura o tensión; confirmar referencia, variante y revisión del equipo. | Debe | P | PS-02 |
 | RNF-08 | Para reducir el desgaste de la microSD, no se escribe en el almacenamiento persistente más de una vez por minuto en funcionamiento normal. | Debe | A | PS-04 |
 | RNF-09 | La carcasa es un prototipo (PLA, madera, cartón u otro material) que deja accesibles el botón de reset, los LED, el puerto Ethernet y la alimentación, y protege el botón de pulsaciones accidentales. **(curso)** | Debe | I | PS-07 |
 | RNF-10 | Desde que se conecta la alimentación hasta que la web responde y los LED muestran el estado pasan ≤ 90 s. | Debería | P | PS-08 |
