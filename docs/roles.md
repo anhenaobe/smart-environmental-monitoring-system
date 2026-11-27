@@ -8,7 +8,7 @@ El equipo tiene **tres integrantes**: Andrew, Mateo y Juan Fernando. No se unió
 
 | Integrante | Rol | Responsabilidades |
 |---|---|---|
-| Andrew | **Firmware, hardware e integración física** | Firmware del STM32 (sensor I²C, UART, validación, LED, botón y watchdog). Bring-up físico de la Milk-V (imagen, consola, red y UART), cableado, alimentación, montaje y pruebas experimentales. Implementa el extremo STM32 del protocolo; no desarrolla `envmond`. |
+| Andrew | **Firmware, hardware e integración física** | Firmware del STM32 (sensor DHT11, UART, validación, LED, botón y watchdog). Bring-up físico de la Milk-V (imagen, consola, red y UART), cableado, alimentación, montaje y pruebas experimentales. Implementa el extremo STM32 del protocolo; no desarrolla `envmond`. |
 | Mateo | **Servicio Linux y datos** | Implementa `envmond` en C: UART Linux, parser, latido, alarmas, configuración, reset y recuperación, registros, API HTTP y supervisión del proceso; construye las páginas de bring-up y ajustes. Coordina la matriz de verificación y la declaración de IA. |
 | Juan Fernando (Fercho) | **Interfaz, instrumentación y producto** | Implementa el dashboard de mediciones e historial y la página de diagnóstico usando la API de Mateo; métricas desde `/proc` y `/sys`; soporte de pruebas en host con `socat`, `make test` y Valgrind cuando proceda. Diseña la carcasa junto con Andrew y prepara manual, video y pruebas de aceptación. |
 
@@ -39,3 +39,4 @@ Participaciones en la matriz (una prueba compartida cuenta para cada implementad
 | 2026-11-13 | Mateo | Propuesta v0.2 de requerimientos, matriz de verificación, descripción y protocolo | PR #1 |
 | 2026-11-19 | Mateo | Arquitectura, índice de documentación y propuesta inicial de reparto | PR #2, primer commit |
 | 2026-11-19 | Andrew (asistencia de ChatGPT) | Ajuste de roles, verificación y arquitectura tras auditoría de PR #2 | PR #2, commit de seguimiento; revisión humana pendiente |
+| 2026-11-26 | Mateo | Parser UART de envmond y pruebas PU-04, PU-05 y PU-06, con asistencia de Claude Code | Rama feat/parser (PR pendiente de verificación por Juan Fernando) |

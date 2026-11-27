@@ -6,18 +6,18 @@ Prototipo de **vigilancia microclimática para conservación preventiva de docum
 
 Las inspecciones ocasionales de temperatura y humedad no revelan qué ocurrió fuera del horario de atención. Registramos el aire próximo a una colección documental y señalamos desviaciones respecto a los límites **configurados**. No controlamos el clima ni diagnosticamos daño del papel.
 
-**Perfil inicial sugerido, editable:** **18–22 °C** y **35–50 % HR**. No son valores universales: consultar [fundamentación, cifras y limitaciones](docs/criterios-conservacion.md), basada en NEDCC 2.1/2.2, Library of Congress y CCI. La instalación y la exactitud reales siguen pendientes de verificación.
+**Perfil inicial sugerido, editable:** **18–22 °C** y **35–50 % HR**. No son valores universales: consultar [fundamentación, cifras y limitaciones](docs/criterios-conservacion.md), basada en NEDCC 2.1/2.2, Library of Congress y CCI. La instalación y la exactitud reales siguen pendientes de verificación. El DHT11 es un sensor de bajo costo: su precisión y resolución limitan la interpretación cerca de los umbrales.
 ## Funcionamiento
 
-1. Un sensor I²C (SHT31 o equivalente) mide la temperatura y la humedad.
-2. El STM32 adquiere y valida las mediciones una vez por segundo.
+1. Un sensor DHT11 (bus digital de un hilo propio del fabricante) mide la temperatura y la humedad.
+2. El STM32 adquiere y valida las mediciones cada 3 segundos (modo normal, DHT11 V1.3).
 3. El STM32 envía los datos a la Milk-V por UART con un [protocolo de texto verificable](docs/protocolo-uart.md).
 4. La Milk-V registra las mediciones, evalúa las alarmas y sirve una interfaz web local por Ethernet.
 5. El usuario consulta los valores actuales, el historial y el diagnóstico del sistema desde el navegador. Los LED del equipo muestran el estado sin necesidad de abrir la web.
 
 ```
-┌──────────┐   I²C   ┌──────────────┐  UART 115200 8N1  ┌──────────────┐  Ethernet  ┌───────────┐
-│  SHT31   │◄───────►│ NUCLEO-L432KC│◄─────────────────►│ Milk-V Duo S │◄──────────►│ Navegador │
+┌──────────┐  DATA   ┌──────────────┐  UART 115200 8N1  ┌──────────────┐  Ethernet  ┌───────────┐
+│  DHT11   │◄───────►│ NUCLEO-L432KC│◄─────────────────►│ Milk-V Duo S │◄──────────►│ Navegador │
 └──────────┘         │  LED + botón │                   │ servicio + web│            └───────────┘
                      └──────────────┘                   └──────────────┘
 ```
