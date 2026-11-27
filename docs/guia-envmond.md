@@ -1,12 +1,12 @@
 # Guía de estudio de `envmond`
 
-Versión: Fase A (lógica: `config`, `alarm`, `logger`) · 2026-11-27 · crece en las fases B (servicio) y C (web).
+Versión: Fase B (servicio: `uart`, `reset`, `servicio`, `envmond`, systemd) sobre la Fase A (lógica: `config`, `alarm`, `logger`) · 2026-11-27 · crece en la Fase C (web).
 
 Esta guía explica **qué hace** el servicio Linux `envmond`, **por qué** está hecho así y **qué alternativas** se descartaron, para poder defenderlo en la sustentación. Las fuentes de verdad siguen siendo [requerimientos.md](requerimientos.md), [arquitectura.md](arquitectura.md), [interfaces.md](interfaces.md) y [protocolo-uart.md](protocolo-uart.md); aquí no se define nada nuevo del contrato.
 
 ## 1. Qué es `envmond` en una frase
 
-Un único proceso en C, de un solo hilo, que corre en la Milk-V Duo S: lee las tramas del STM32 por UART, valida cada medición, decide si hay alarma, guarda el historial agregado en la microSD, guarda la configuración del bring-up y la sirve por web.
+Un único proceso en C que corre en la Milk-V Duo S, con un hilo de servicio (más los hilos HTTP de CivetWeb en la Fase C, §6.1): lee las tramas del STM32 por UART, valida cada medición, decide si hay alarma, guarda el historial agregado en la microSD, guarda la configuración del bring-up y la sirve por web.
 
 ## 2. Módulos
 
@@ -17,7 +17,10 @@ Un único proceso en C, de un solo hilo, que corre en la Milk-V Duo S: lee las t
 | `config` | **Fase A** | Valida el formulario, guarda y carga `/etc/envmon/config`, calcula y verifica el hash de la contraseña | El archivo es la única fuente del modo (bring-up o normal); el guardado no puede dejarlo truncado (RF-43) |
 | `alarm` | **Fase A** | Decide si la medición es válida y fresca ("sin datos") y si hay alarma de temperatura o de HR | Lógica pura con reloj inyectado: se prueban segundos y minutos en microsegundos |
 | `logger` | **Fase A** | Agrega las lecturas por intervalo (promedio, mínimo, máximo) y escribe una fila por intervalo en un CSV diario; aplica la retención | Escribir cada lectura gastaría la microSD (RNF-08) |
-| `uart`, lazo principal, `reset` | Fase B | Abrir el puerto, `poll`, latido `SYS`, factory reset | — |
+| `uart` | **Fase B** | Abre el puerto a 115200 8N1 en modo crudo y no bloqueante; arma `$<carga>*CS\r\n` y encola la salida | `poll` necesita un descriptor que nunca bloquee; la salida se vacía con `POLLOUT` |
+| `reset` | **Fase B** | Marcador `reset.pending` durable y borrado idempotente (RF-52, RF-53) | Que un corte en cualquier punto deje un estado coherente (PU-12) |
+| `servicio` | **Fase B** | Núcleo: modos bring-up, normal y reset; `SYS` cada 1 s; `BTN`/`ACK`; instantánea para `/api/estado` | Sin E/S directa ni relojes propios: se prueba entero con relojes simulados |
+| `envmond.c` | **Fase B** | `main`: opciones, `signalfd`, lazo `poll`, reapertura de la UART | Solo E/S; toda la lógica está en `servicio` |
 | `http` (CivetWeb), páginas | Fase C | API JSON y páginas de bring-up y ajustes | — |
 
 ### 2.1 `config`
@@ -90,11 +93,11 @@ inicio_utc,hora_ok,n_validas,temp_prom,temp_min,temp_max,hr_prom,hr_min,hr_max
 ## 3. Flujo de una medición, de la UART a la web
 
 1. El STM32 lee el DHT11 cada 3 s y envía `$ENV,00000042,+02450,05310,0*44`.
-2. *(Fase B)* El lazo de `envmond` despierta en `poll()` porque hay bytes en `/dev/ttyS*`; los lee sin bloquear.
+2. El lazo de `envmond` despierta en `poll()` porque hay bytes en el puerto (por defecto `/dev/ttyS2`) y los lee sin bloquear.
 3. `parser_bloque` encuadra la línea, verifica el XOR, decodifica los campos y actualiza los contadores y las tramas perdidas por `seq`.
-4. `alarm_env` actualiza la frescura y las rachas; `alarm_estado` dice si la medición es válida y si hay alarma.
-5. `logger_muestra` suma la lectura al intervalo en curso; cuando el intervalo termina, `logger_tick` escribe la fila en el CSV del día.
-6. *(Fase B)* Cada 1 s el lazo envía `$SYS,1` (o `2` si hay alarma) y el STM32 pone el LED correspondiente.
+4. `servicio_bytes` recibe el mensaje: `alarm_env` actualiza la frescura y las rachas; en modo normal, `logger_muestra` suma la lectura al intervalo en curso. En bring-up solo se actualizan los contadores y la frescura (sin historial ni alarmas).
+5. `servicio_tick`, en cada vuelta del lazo: cuando el intervalo termina, `logger_tick` escribe la fila en el CSV del día.
+6. Cada 1 s `servicio_tick` envía `SYS,<estado>` (0 bring-up, 1 normal, 2 alarma, 3 reset) y el STM32 pone el LED correspondiente. El plazo de `poll` es justo el tiempo hasta el siguiente `SYS`, así el lazo no gira en vano.
 7. *(Fase C)* `GET /api/estado` devuelve el estado en RAM; `temp_c` y `hr` van en `null` si `valida = false`.
 
 ## 4. Guardado atómico de la configuración (RF-43, PU-07)
@@ -114,14 +117,27 @@ fsync(dir_fd);                            /* el nuevo nombre también es durable
 - **Cómo se prueba:** las cuatro operaciones (`escribir`, `sincronizar`, `renombrar`, `sincronizar_dir`) se pasan como punteros a función. La prueba las sustituye para (a) devolver error en cada paso y (b) simular un corte: un proceso hijo (`fork`) ejecuta el guardado y llama a `_exit` justo en el paso elegido, sin limpiar nada. En todos los casos la carga devuelve la configuración vieja (antes del `rename`) o la nueva completa (después). Además, todos los prefijos posibles del archivo se rechazan como inválidos.
 - **Límite:** la prueba unitaria demuestra el orden de las operaciones y la recuperación; la durabilidad real en la microSD la demuestra PB-04 (cortes físicos).
 
-## 5. Factory reset ante cortes de energía (diseño; se implementa en la Fase B)
+## 5. Factory reset ante cortes de energía (RF-52, RF-53, PU-12)
 
-Según [interfaces.md §4](interfaces.md): al recibir `$BTN,RST`, `envmond` **primero** crea y sincroniza `/etc/envmon/reset.pending` y solo entonces responde `$ACK,RST`. Después borra el historial, borra `config`, sincroniza el directorio y retira el marcador. Al arrancar, si existe el marcador, termina el borrado **antes de servir la web**.
+Según [interfaces.md §4](interfaces.md), al recibir `$BTN,RST`:
 
-- Corte **antes** de que el marcador sea durable: no hubo `ACK`, el reset no se confirmó y se conserva la configuración. El STM32 reintenta y, tras 5 intentos, avisa con los LED.
-- Corte **después**: al arrancar se ve el marcador y se completa el borrado; cada paso es idempotente (borrar algo que ya no está no es error).
+```c
+if (reset_marcar(dir_config, ops) != 0) return;   /* sin marcador durable: sin ACK */
+enviar("ACK,RST");  enviar("SYS,3");
+reset_completar(dir_config, dir_datos, ops);       /* historial -> config -> marcador */
+```
 
-Se detallará con la prueba PU-12 en la Fase B.
+1. `reset_marcar` crea `/etc/envmon/reset.pending` y sincroniza el archivo y el directorio. Si algo falla, lo retira y **no** se envía `ACK`; el STM32 reintenta y, tras 5 intentos, avisa con los LED (RF-54).
+2. Con el marcador durable se envían `ACK,RST` y `SYS,3`. `SYS,3` se mantiene **2 s** (decisión de Mateo) para que se vea el LED a 5 Hz; después llega `SYS,0`.
+3. `reset_completar` borra los archivos de `/var/lib/envmon/` (no el directorio, que crea systemd), sincroniza, borra `config` y `config.tmp`, sincroniza, retira el marcador y sincroniza. Si un paso falla, el marcador sigue y se reintenta cada segundo.
+4. **Al arrancar**, `servicio_init` mira primero si existe el marcador y, si existe, completa el borrado **antes** de cargar la configuración o servir la web.
+
+- **Corte antes** de que el marcador sea durable: no hubo `ACK` y se conserva todo.
+- **Corte después:** el siguiente arranque ve el marcador y termina. Cada paso es idempotente (borrar lo que ya no está no es error), así que repetirlo desde el principio es seguro.
+- **`BTN` repetido** (el `ACK` se perdió): vuelve a marcar, responde `ACK` y completa; no causa daño (decisión de Mateo).
+- **Orden:** primero el historial y después `config`. Con cualquier corte, nunca queda "configuración borrada con historial viejo".
+
+**Cómo se prueba (PU-12):** las cuatro operaciones (`crear`, `sincronizar`, `sincronizar_dir`, `borrar`) son inyectables. Un proceso hijo ejecuta marcar → `ACK` → completar y hace `_exit` **antes de la operación número N**; el padre simula el arranque siguiente. Se prueba N = 1 … 13, o sea, un corte antes de cada operación. En todos los casos el resultado es "todo intacto" o "bring-up limpio", y si hubo `ACK` siempre es bring-up limpio. Como en PU-07, la durabilidad física en la microSD queda para PF-03.
 
 ## 6. Decisiones de diseño y alternativas
 
@@ -137,6 +153,29 @@ Se detallará con la prueba PU-12 en la Fase B.
 | CSV por día con fecha local | Un archivo único; base de datos | Rotación y retención = borrar archivos; legible con cualquier editor |
 | `fsync` por fila | Búfer en RAM de varias filas | Se pierde como máximo un intervalo y se cumple RNF-08 |
 
+### 6.1 Decisiones de la Fase B
+
+| Decisión | Alternativa descartada | Motivo |
+|---|---|---|
+| **Un hilo de servicio + hilos HTTP de CivetWeb con mutex** (decisión de Mateo) | Servidor HTTP propio dentro de `poll`; Mongoose | CivetWeb (MIT) crea sus propios hilos y no se integra en un `poll` ajeno. El hilo del lazo es el único dueño de UART, alarma, historial y reset; los manejadores HTTP solo copian una instantánea o dejan una petición de configuración bajo un mutex corto, con `num_threads` mínimo. El servidor propio agregaba código HTTP a probar y defender, y Mongoose (GPLv2/comercial) plantea dudas de licencia con GPL-3.0 |
+| Núcleo `servicio` sin E/S, con `tx` y relojes inyectados | Lógica dentro de `main` | Las transiciones (bring-up → normal → reset → bring-up) se prueban en milisegundos |
+| `signalfd` + señales bloqueadas | Manejador de señal con variable global | La señal llega como un descriptor más del `poll`; bloquearla antes de crear hilos evita que la reciba un hilo HTTP |
+| Reabrir la UART cada 5 s si falla | Terminar el proceso | Un cable flojo no debe tumbar la web; systemd sigue cubriendo las caídas reales |
+| systemd con `Restart=always`, `RestartSec=1`, `StartLimitIntervalSec=0` | Script de inicio; BusyBox `init` | La imagen Debian usa systemd; un script no reinicia tras `kill -9`. Sin `StartLimitIntervalSec=0`, 5 caídas en 10 s detendrían el servicio para siempre |
+| Usuario `envmon` (grupo `dialout`), `NoNewPrivileges`, `ProtectSystem=strict` | Correr como root | Un fallo en la web (Fase C) no puede escribir fuera de `/etc/envmon` y `/var/lib/envmon` |
+
+### 6.2 Cómo se comprobó que el servicio puede escribir bajo `ProtectSystem=strict`
+
+En el manual `systemd.exec(5)` de systemd 257 (el instalado en el equipo de desarrollo):
+
+- `ProtectSystem=strict` monta **todo** el sistema de archivos en solo lectura, salvo `/dev`, `/proc` y `/sys`. Lo excluyen las rutas de `ReadWritePaths=` y los directorios de `StateDirectory=`, `ConfigurationDirectory=` y afines.
+- `StateDirectory=envmon` crea `/var/lib/envmon` **con dueño `envmon`**.
+- `ConfigurationDirectory=envmon` crea `/etc/envmon` y lo deja escribible, pero el manual aclara: *"Except in case of `ConfigurationDirectory=`, the innermost specified directories will be owned by the user and group specified in `User=`"*. Es decir, `/etc/envmon` quedaría de root y `envmon` no podría escribir. Por eso:
+  - `envmond.tmpfiles` (`d /etc/envmon 0750 envmon envmon -`) pone el dueño; `tmpfiles.d(5)` dice que `d` ajusta modo y dueño;
+  - `ReadWritePaths=/etc/envmon /var/lib/envmon` lo deja explícito.
+- `systemd-analyze verify` sobre la unidad no reporta directivas desconocidas.
+- **Pendiente en la Duo S** (sin `sudo` en el equipo de desarrollo no se pudo instalar): `systemctl start envmond`, comprobar con `ls -l` el dueño de ambos directorios, guardar una configuración, ejecutar un factory reset y hacer `kill -9` (PI-07).
+
 ## 7. Preguntas probables del profesor
 
 1. **¿Qué pasa si se va la luz mientras se guarda la configuración?** Queda la anterior o la nueva, completa, nunca una mezcla: se escribe un temporal, se sincroniza y se renombra de forma atómica. PU-07 lo prueba fallando en cada paso y PB-04 con cortes reales.
@@ -145,9 +184,20 @@ Se detallará con la prueba PU-12 en la Fase B.
 4. **¿Por qué no escriben cada medición en la microSD?** Serían 28 800 escrituras al día; agregando por minuto son 1440 (20 veces menos), lo que reduce el desgaste (RNF-08) y basta para la gráfica de 24 h.
 5. **¿Qué significa "sin datos" y cuándo aparece?** Que la web no muestra un valor viejo como si fuera actual: aparece si la última trama fue inválida o si pasaron más de 5 s sin una válida. Con `ENV` cada 3 s, una sola trama perdida lo produce un momento; está documentado y se propondrá ajustar el umbral.
 
-## 8. Pendientes y limitaciones conocidas (Fase A)
+**Fase B:**
+
+6. **¿Qué pasa si se va la luz durante un factory reset?** Si el corte ocurre antes de que `reset.pending` sea durable, no hubo `ACK` y todo se conserva. Si ocurre después, el siguiente arranque ve el marcador y termina el borrado antes de servir la web. PU-12 corta antes de cada una de las 13 operaciones de archivo.
+7. **¿Por qué no se envía el `ACK` apenas llega el `BTN`?** Porque el `ACK` le dice al STM32 que el reset quedó garantizado; si se enviara antes de persistir el marcador y se fuera la luz, el usuario creería que el equipo se restableció sin que fuera así.
+8. **¿Cómo atiende el servicio la UART, el latido y la web sin bloquearse?** Con un lazo `poll()`: la UART es no bloqueante y el plazo de `poll` es el tiempo hasta el siguiente `SYS`. La web corre en hilos de CivetWeb que solo leen una copia del estado bajo un mutex corto.
+9. **¿Qué pasa si `envmond` se cae?** systemd lo reinicia en 1 s (`Restart=always`, sin límite de reinicios). Mientras tanto, el STM32 sigue midiendo y, a los 5 s sin `SYS`, muestra "sin Linux" (RF-06). PI-07 lo verifica con `kill -9`.
+10. **¿Cómo probaron todo sin la placa?** `socat` crea un par de pseudoterminales; `envmond` abre uno y un STM32 simulado en C abre el otro. Con el reloj real se comprueban bring-up, `SYS,1`, la alarma tras 5 lecturas, los contadores, el reset con `ACK` y `SYS,3` durante 2 s, y el arranque con `reset.pending`, también bajo Valgrind.
+
+## 8. Pendientes y limitaciones conocidas
 
 - **"Sin datos" momentáneo** con una trama perdida (§2.2): pendiente de acordar con Andrew un umbral de ~7 s.
 - La **verificación formal** de PU-07, PU-09, PU-11, PU-13, PU-14 y PU-15 corresponde a Juan Fernando (la de PU-07, PU-09, PU-13 y PU-14 se le reasignó el 2026-11-27 por disponibilidad de Andrew). Las pruebas de esta fase son de desarrollo.
 - Los archivos sin hora válida no tienen retención: si el equipo funciona mucho tiempo sin NTP ni hora del navegador, crecen sin límite (unos 86 kB por día con intervalo de 60 s).
 - Falta confirmar en la imagen de la Duo S que `libcrypt` admite `$6$`.
+- **Fase B:** la UART por defecto (`/dev/ttyS2`) es solo candidata hasta PI-01; se cambia con `systemctl edit envmond` (`Environment=ENVMOND_UART=…`).
+- **Fase B:** la instalación con systemd, los permisos bajo `ProtectSystem=strict` y el reinicio tras `kill -9` (PI-07) no se ejecutaron en este equipo por falta de `sudo`; se prueban en la Duo S.
+- La verificación formal de PU-12 corresponde a Juan Fernando; la integración en host (`make integracion`) es una prueba de desarrollo y no reemplaza PI-03, PI-04, PF-02 ni PF-03 sobre hardware.
