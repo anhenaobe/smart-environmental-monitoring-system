@@ -35,6 +35,20 @@ La tabla anterior corresponde al firmware anterior v0.2.0 (SHT31), no al DHT11.
 | 2026-11-26 | Compatibilidad con parser real de Mateo | Aprobada (host) | `tests/test_dht11_parser_compat`: DHT11 → centésimas → encuadre UART → parser de envmond (main tras PR #5); tramas válidas, fallas 1/2/3 y STA (contador/versión) aceptadas. No es una prueba de envmond completo. Suite CMocka del parser no ejecutada aquí por falta de cmocka.h. |
 | 2026-11-26 | Probe UART — regresión PTY | Aprobada (host) | `make -C linux check`: siete pruebas, sin acceder a UART física. |
 | 2026-11-26 | Compilación y enlace ARM directo (6 variantes) | Aprobada (offline) | GCC ARM 7.2.1, HAL STM32CubeL4 1.18.1, startup oficial y scripts de enlace del repositorio, `-Wall -Wextra -Werror`; imágenes ELF/BIN para normal, sintético y watchdog en ambas placas. No se flashearon. |
+| 2026-11-26 | Compilación PlatformIO (6 variantes) | Aprobada (offline) | PlatformIO 6.1.18 / ststm32 19.5.0 / CubeL4 1.18.1 / GCC ARM 7.2.1: seis SUCCESS. Verificados vectores MSP, SysTick y USART1, sin símbolos HAL_I2C; decodificador DHT11 enlazado en real/watchdog y no en sintético. Sin flashear. |
+
+### DHT11 v0.3.0: tamaños de imágenes PlatformIO
+
+| Target | BIN (bytes) | RAM reservada (bytes, incl. stack/heap) |
+|---|---:|---:|
+| nucleo_l432kc | 12616 | 5192 |
+| nucleo_l412kb | 12808 | 5192 |
+| nucleo_l432kc_synthetic | 11944 | 5176 |
+| nucleo_l412kb_synthetic | 12136 | 5176 |
+| nucleo_l432kc_watchdog_test | 12760 | 5192 |
+| nucleo_l412kb_watchdog_test | 12936 | 5192 |
+
+No se afirma uso dinámico de RAM ni funcionamiento eléctrico. Ambos targets normales quedan bajo el límite RNF-13 en inspección estática.
 
 ## Formato de evidencia para clase
 
