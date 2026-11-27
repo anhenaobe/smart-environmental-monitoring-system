@@ -2,7 +2,7 @@
 # install"; los pasos para activarla estan en linux/README.md.
 # Cambiar el puerto serie sin editar este archivo:
 #   systemctl edit envmond   ->   [Service]
-#                                 Environment=ENVMOND_UART=/dev/ttyS1
+#                                 Environment=ENVMOND_UART=/dev/ttyAMA0
 [Unit]
 Description=envmond: monitor ambiental del gabinete documental
 Documentation=https://github.com/anhenaobe/smart-environmental-monitoring-system
@@ -17,7 +17,7 @@ Type=simple
 User=envmon
 Group=envmon
 SupplementaryGroups=dialout
-Environment=ENVMOND_UART=/dev/ttyS2
+Environment=ENVMOND_UART=/dev/serial0
 ExecStart=/usr/bin/envmond --uart ${ENVMOND_UART} --config-dir /etc/envmon --data-dir /var/lib/envmon
 Restart=always
 RestartSec=1

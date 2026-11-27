@@ -26,7 +26,8 @@
 #define ENVMOND_VERSION "0.2.0"
 #define REABRIR_UART_MS 5000
 
-static const char *const UART_DEFECTO = "/dev/ttyS2";   /* UART2 candidata (PI-01) */
+/* Raspberry Pi Zero 2 W: enlace a la UART principal (PL011 con dtoverlay=disable-bt). */
+static const char *const UART_DEFECTO = "/dev/serial0";
 static const char *const CONFIG_DEFECTO = "/etc/envmon";
 static const char *const DATOS_DEFECTO = "/var/lib/envmon";
 

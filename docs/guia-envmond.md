@@ -6,7 +6,7 @@ Esta guía explica **qué hace** el servicio Linux `envmond`, **por qué** está
 
 ## 1. Qué es `envmond` en una frase
 
-Un único proceso en C que corre en la Milk-V Duo S, con un hilo de servicio (más los hilos HTTP de CivetWeb en la Fase C, §6.1): lee las tramas del STM32 por UART, valida cada medición, decide si hay alarma, guarda el historial agregado en la microSD, guarda la configuración del bring-up y la sirve por web.
+Un único proceso en C que corre en la SBC (**Raspberry Pi Zero 2 W** con Raspberry Pi OS; reemplaza a la Milk-V Duo S, que se perdió), con un hilo de servicio (más los hilos HTTP de CivetWeb en la Fase C, §6.1): lee las tramas del STM32 por UART, valida cada medición, decide si hay alarma, guarda el historial agregado en la microSD, guarda la configuración del bring-up y la sirve por web.
 
 ## 2. Módulos
 
@@ -87,13 +87,13 @@ inicio_utc,hora_ok,n_validas,temp_prom,temp_min,temp_max,hr_prom,hr_min,hr_max
 
 - **Rotación diaria (RF-22, PU-11):** el nombre del archivo es la fecha **local** del inicio del intervalo (`AAAA-MM-DD.csv`); al cambiar el día se escribe en otro archivo, sin renombrar nada.
 - **Retención:** al arrancar y cada vez que cambia el día local se borran los CSV anteriores a los últimos N días (el día actual cuenta como uno). Con 7 quedan hoy y los 6 anteriores. No toca otros archivos ni fechas futuras.
-- **Hora no válida:** si el reloj marca antes del 2026-01-01 (la Duo S no tiene batería de RTC), la fila lleva `hora_ok = 0` y va a un archivo con esa fecha, por ejemplo `1970-01-01.csv`. **La retención no borra los archivos con fecha anterior a 2026-01-01** (decisión de Mateo): se conservan como evidencia y los elimina el factory reset. Si el reloj retrocede, se cierra el intervalo en curso y se abre uno nuevo.
+- **Hora no válida:** si el reloj marca antes del 2026-01-01 (la Pi Zero 2 W no tiene reloj de tiempo real con batería), la fila lleva `hora_ok = 0` y va a un archivo con esa fecha, por ejemplo `1970-01-01.csv`. **La retención no borra los archivos con fecha anterior a 2026-01-01** (decisión de Mateo): se conservan como evidencia y los elimina el factory reset. Si el reloj retrocede, se cierra el intervalo en curso y se abre uno nuevo.
 - **Escrituras (RNF-08):** una sola `write` + `fsync` por intervalo, es decir, como máximo una por minuto. Ante un corte se pierde como máximo el intervalo en curso; si quedó una fila a medias, la siguiente empieza en una línea nueva.
 
 ## 3. Flujo de una medición, de la UART a la web
 
 1. El STM32 lee el DHT11 cada 3 s y envía `$ENV,00000042,+02450,05310,0*44`.
-2. El lazo de `envmond` despierta en `poll()` porque hay bytes en el puerto (por defecto `/dev/ttyS2`) y los lee sin bloquear.
+2. El lazo de `envmond` despierta en `poll()` porque hay bytes en el puerto (por defecto `/dev/serial0`) y los lee sin bloquear.
 3. `parser_bloque` encuadra la línea, verifica el XOR, decodifica los campos y actualiza los contadores y las tramas perdidas por `seq`.
 4. `servicio_bytes` recibe el mensaje: `alarm_env` actualiza la frescura y las rachas; en modo normal, `logger_muestra` suma la lectura al intervalo en curso. En bring-up solo se actualizan los contadores y la frescura (sin historial ni alarmas).
 5. `servicio_tick`, en cada vuelta del lazo: cuando el intervalo termina, `logger_tick` escribe la fila en el CSV del día.
@@ -174,7 +174,18 @@ En el manual `systemd.exec(5)` de systemd 257 (el instalado en el equipo de desa
   - `envmond.tmpfiles` (`d /etc/envmon 0750 envmon envmon -`) pone el dueño; `tmpfiles.d(5)` dice que `d` ajusta modo y dueño;
   - `ReadWritePaths=/etc/envmon /var/lib/envmon` lo deja explícito.
 - `systemd-analyze verify` sobre la unidad no reporta directivas desconocidas.
-- **Pendiente en la Duo S** (sin `sudo` en el equipo de desarrollo no se pudo instalar): `systemctl start envmond`, comprobar con `ls -l` el dueño de ambos directorios, guardar una configuración, ejecutar un factory reset y hacer `kill -9` (PI-07).
+- **Pendiente en la Raspberry Pi Zero 2 W** (sin `sudo` en el equipo de desarrollo no se pudo instalar): `systemctl start envmond`, comprobar con `ls -l` el dueño de ambos directorios, guardar una configuración, ejecutar un factory reset y hacer `kill -9` (PI-07).
+
+### 6.3 UART en la Raspberry Pi Zero 2 W
+
+`envmond` abre por defecto `/dev/serial0`, el enlace que Raspberry Pi OS crea hacia la **UART principal** (GPIO14 = TX, pin 8; GPIO15 = RX, pin 10; 3,3 V). En la Zero 2 W el PL011 completo (`ttyAMA0`) lo usa el Bluetooth y a los pines le queda la mini-UART (`ttyS0`), cuya velocidad depende del reloj del núcleo. Para el enlace con el STM32 hay que dejar el PL011 en los pines y sin consola:
+
+1. En `/boot/firmware/config.txt` (o `/boot/config.txt` en imágenes antiguas): `enable_uart=1` y `dtoverlay=disable-bt`; después, `systemctl disable hciuart`.
+2. Quitar `console=serial0,115200` de `/boot/firmware/cmdline.txt`; con `raspi-config` → *Interface Options* → *Serial Port*: consola por serie **No**, hardware serie **Sí**.
+3. Reiniciar y comprobar que `ls -l /dev/serial0` apunta a `ttyAMA0`, que `/proc/cmdline` no tiene `console=serial0` y que no hay un `serial-getty@ttyAMA0` activo.
+4. El dispositivo pertenece al grupo `dialout`, el mismo de la unidad (`SupplementaryGroups=dialout`).
+
+El diseño de la Fase B no cambia con la placa: systemd, usuario `envmon`, `ProtectSystem=strict` y CivetWeb con hilos.
 
 ## 7. Preguntas probables del profesor
 
@@ -197,7 +208,8 @@ En el manual `systemd.exec(5)` de systemd 257 (el instalado en el equipo de desa
 - **"Sin datos" momentáneo** con una trama perdida (§2.2): pendiente de acordar con Andrew un umbral de ~7 s.
 - La **verificación formal** de PU-07, PU-09, PU-11, PU-13, PU-14 y PU-15 corresponde a Juan Fernando (la de PU-07, PU-09, PU-13 y PU-14 se le reasignó el 2026-11-27 por disponibilidad de Andrew). Las pruebas de esta fase son de desarrollo.
 - Los archivos sin hora válida no tienen retención: si el equipo funciona mucho tiempo sin NTP ni hora del navegador, crecen sin límite (unos 86 kB por día con intervalo de 60 s).
-- Falta confirmar en la imagen de la Duo S que `libcrypt` admite `$6$`.
-- **Fase B:** la UART por defecto (`/dev/ttyS2`) es solo candidata hasta PI-01; se cambia con `systemctl edit envmond` (`Environment=ENVMOND_UART=…`).
-- **Fase B:** la instalación con systemd, los permisos bajo `ProtectSystem=strict` y el reinicio tras `kill -9` (PI-07) no se ejecutaron en este equipo por falta de `sudo`; se prueban en la Duo S.
+- Falta confirmar en Raspberry Pi OS que `libcrypt` admite `$6$`.
+- **Fase B:** la UART por defecto es `/dev/serial0` (Pi Zero 2 W); se cambia con `--uart` o con `systemctl edit envmond` (`Environment=ENVMOND_UART=…`). Requiere la configuración de §6.3.
+- **Cambio de SBC:** `arquitectura.md` §3, `hardware/` y las secciones 1 a 5 de `linux/README.md` todavía describen la Milk-V; se actualizarán en un PR aparte de documentación, después de acordarlo con Andrew.
+- **Fase B:** la instalación con systemd, los permisos bajo `ProtectSystem=strict` y el reinicio tras `kill -9` (PI-07) no se ejecutaron en este equipo por falta de `sudo`; se prueban en la Raspberry Pi Zero 2 W.
 - La verificación formal de PU-12 corresponde a Juan Fernando; la integración en host (`make integracion`) es una prueba de desarrollo y no reemplaza PI-03, PI-04, PF-02 ni PF-03 sobre hardware.

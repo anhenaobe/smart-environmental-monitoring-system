@@ -29,7 +29,7 @@ SERVICIO_TARGET = tests/test_servicio
 .PHONY: all host envmond-bin install integracion integracion-valgrind integracion-larga clean check test valgrind test_parser test_config test_alarm test_logger test_uart test_reset test_servicio
 
 # Servicio envmond (Fase B). El mismo Makefile compila en el host x86
-# ("make host") y en la Duo S, o con CC=<compilador cruzado RISC-V>.
+# ("make host") y en la Raspberry Pi Zero 2 W, o con CC=<compilador cruzado aarch64>.
 ENVMOND_SRC = src/envmond.c src/servicio.c src/uart.c src/config.c src/alarm.c \
               src/logger.c src/parser.c src/reset.c
 ENVMOND_HDR = src/servicio.h src/uart.h src/config.h src/alarm.h src/logger.h \
