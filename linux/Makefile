@@ -21,8 +21,10 @@ LOGGER_SRC = src/logger.c tests/test_logger.c
 LOGGER_TARGET = tests/test_logger
 UART_SRC = src/uart.c tests/test_uart.c
 UART_TARGET = tests/test_uart
+RESET_SRC = src/reset.c tests/test_reset.c
+RESET_TARGET = tests/test_reset
 
-.PHONY: all clean check test valgrind test_parser test_config test_alarm test_logger test_uart
+.PHONY: all clean check test valgrind test_parser test_config test_alarm test_logger test_uart test_reset
 
 all: uart_probe
 
@@ -62,19 +64,26 @@ $(UART_TARGET): $(UART_SRC) src/uart.h
 test_logger: $(LOGGER_TARGET)
 	./$(LOGGER_TARGET)
 
+$(RESET_TARGET): $(RESET_SRC) src/reset.h
+	$(CC) $(TEST_CFLAGS) $(RESET_SRC) -o $@ $(TEST_LDLIBS)
+
 test_uart: $(UART_TARGET)
 	./$(UART_TARGET)
 
-test: $(TEST_TARGET) test_parser test_config test_alarm test_logger test_uart
+test_reset: $(RESET_TARGET)
+	./$(RESET_TARGET)
+
+test: $(TEST_TARGET) test_parser test_config test_alarm test_logger test_uart test_reset
 	./$(TEST_TARGET)
 
-valgrind: $(TEST_TARGET) $(PARSER_TARGET) $(CONFIG_TARGET) $(ALARM_TARGET) $(LOGGER_TARGET) $(UART_TARGET)
+valgrind: $(TEST_TARGET) $(PARSER_TARGET) $(CONFIG_TARGET) $(ALARM_TARGET) $(LOGGER_TARGET) $(UART_TARGET) $(RESET_TARGET)
 	valgrind --leak-check=full --error-exitcode=1 ./$(TEST_TARGET)
 	valgrind --leak-check=full --error-exitcode=1 ./$(PARSER_TARGET)
 	valgrind --leak-check=full --error-exitcode=1 --trace-children=yes ./$(CONFIG_TARGET)
 	valgrind --leak-check=full --error-exitcode=1 ./$(ALARM_TARGET)
 	valgrind --leak-check=full --error-exitcode=1 ./$(LOGGER_TARGET)
 	valgrind --leak-check=full --error-exitcode=1 ./$(UART_TARGET)
+	valgrind --leak-check=full --error-exitcode=1 --trace-children=yes ./$(RESET_TARGET)
 
 clean:
-	rm -f uart_probe $(TEST_TARGET) $(PARSER_TARGET) $(CONFIG_TARGET) $(ALARM_TARGET) $(LOGGER_TARGET) $(UART_TARGET)
+	rm -f uart_probe $(TEST_TARGET) $(PARSER_TARGET) $(CONFIG_TARGET) $(ALARM_TARGET) $(LOGGER_TARGET) $(UART_TARGET) $(RESET_TARGET)
