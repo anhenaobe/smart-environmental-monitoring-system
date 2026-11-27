@@ -6,7 +6,7 @@ LDFLAGS ?=
 LDLIBS ?=
 
 # Pruebas unitarias con CMocka: metrics (PU-08 / RNF-03), parser UART (PU-04..PU-06)
-# configuracion (PU-07, PU-14, PU-15) y alarmas (PU-13).
+# configuracion (PU-07, PU-14, PU-15), alarmas (PU-13) e historial (PU-09, PU-11).
 TEST_CFLAGS = -std=c11 -g -Wall -Wextra -Werror -Isrc
 TEST_LDLIBS = -lcmocka
 TEST_SRC = src/metrics.c tests/test_metrics.c
@@ -17,8 +17,10 @@ CONFIG_SRC = src/config.c tests/test_config.c
 CONFIG_TARGET = tests/test_config
 ALARM_SRC = src/alarm.c tests/test_alarm.c
 ALARM_TARGET = tests/test_alarm
+LOGGER_SRC = src/logger.c tests/test_logger.c
+LOGGER_TARGET = tests/test_logger
 
-.PHONY: all clean check test valgrind test_parser test_config test_alarm
+.PHONY: all clean check test valgrind test_parser test_config test_alarm test_logger
 
 all: uart_probe
 
@@ -46,17 +48,24 @@ $(ALARM_TARGET): $(ALARM_SRC) src/alarm.h src/parser.h
 test_config: $(CONFIG_TARGET)
 	./$(CONFIG_TARGET)
 
+$(LOGGER_TARGET): $(LOGGER_SRC) src/logger.h src/parser.h
+	$(CC) $(TEST_CFLAGS) $(LOGGER_SRC) -o $@ $(TEST_LDLIBS)
+
 test_alarm: $(ALARM_TARGET)
 	./$(ALARM_TARGET)
 
-test: $(TEST_TARGET) test_parser test_config test_alarm
+test_logger: $(LOGGER_TARGET)
+	./$(LOGGER_TARGET)
+
+test: $(TEST_TARGET) test_parser test_config test_alarm test_logger
 	./$(TEST_TARGET)
 
-valgrind: $(TEST_TARGET) $(PARSER_TARGET) $(CONFIG_TARGET) $(ALARM_TARGET)
+valgrind: $(TEST_TARGET) $(PARSER_TARGET) $(CONFIG_TARGET) $(ALARM_TARGET) $(LOGGER_TARGET)
 	valgrind --leak-check=full --error-exitcode=1 ./$(TEST_TARGET)
 	valgrind --leak-check=full --error-exitcode=1 ./$(PARSER_TARGET)
 	valgrind --leak-check=full --error-exitcode=1 --trace-children=yes ./$(CONFIG_TARGET)
 	valgrind --leak-check=full --error-exitcode=1 ./$(ALARM_TARGET)
+	valgrind --leak-check=full --error-exitcode=1 ./$(LOGGER_TARGET)
 
 clean:
-	rm -f uart_probe $(TEST_TARGET) $(PARSER_TARGET) $(CONFIG_TARGET) $(ALARM_TARGET)
+	rm -f uart_probe $(TEST_TARGET) $(PARSER_TARGET) $(CONFIG_TARGET) $(ALARM_TARGET) $(LOGGER_TARGET)
