@@ -213,7 +213,7 @@ static void pu14_minimo_no_menor_que_maximo(void **state) {
     f = form_valido(); f.temp_min = "25"; f.temp_max = "22";   un_error(f, CONFIG_CAMPO_TEMP_MAX, CONFIG_MOTIVO_ORDEN);
     f = form_valido(); f.hr_min = "50";   f.hr_max = "50";     un_error(f, CONFIG_CAMPO_HR_MAX, CONFIG_MOTIVO_ORDEN);
     f = form_valido(); f.hr_min = "60";   f.hr_max = "40";     un_error(f, CONFIG_CAMPO_HR_MAX, CONFIG_MOTIVO_ORDEN);
-    f = form_valido(); f.temp_min = "21.99"; f.temp_max = "22"; sin_error(f);
+    f = form_valido(); f.temp_min = "21.99"; f.temp_max = "22"; un_error(f, CONFIG_CAMPO_TEMP_MAX, CONFIG_MOTIVO_ESTRECHO);
 
     /* Tambien sobre una configuracion armada (la que se carga del archivo). */
     config_t c = config_con(0);
@@ -221,6 +221,30 @@ static void pu14_minimo_no_menor_que_maximo(void **state) {
     c.hr_min_centi = c.hr_max_centi;
     assert_int_equal(config_validar(&c, m), 1);
     assert_int_equal(m[CONFIG_CAMPO_HR_MAX], CONFIG_MOTIVO_ORDEN);
+}
+
+/* Decision de Mateo: max - min >= 2 x histeresis de RF-24 (1,0 °C y 4 puntos
+ * de HR); si no, la banda de desactivacion queda vacia y la alarma no se
+ * apagaria nunca. */
+static void pu14_rango_minimo_por_histeresis(void **state) {
+    (void)state;
+    config_form_t f;
+    f = form_valido(); f.temp_min = "21";    f.temp_max = "22";    sin_error(f);
+    f = form_valido(); f.temp_min = "21.01"; f.temp_max = "22";    un_error(f, CONFIG_CAMPO_TEMP_MAX, CONFIG_MOTIVO_ESTRECHO);
+    f = form_valido(); f.temp_min = "20.0";  f.temp_max = "20.5";  un_error(f, CONFIG_CAMPO_TEMP_MAX, CONFIG_MOTIVO_ESTRECHO);
+    f = form_valido(); f.hr_min = "46";      f.hr_max = "50";      sin_error(f);
+    f = form_valido(); f.hr_min = "46.01";   f.hr_max = "50";      un_error(f, CONFIG_CAMPO_HR_MAX, CONFIG_MOTIVO_ESTRECHO);
+    f = form_valido(); f.hr_min = "49";      f.hr_max = "50";      un_error(f, CONFIG_CAMPO_HR_MAX, CONFIG_MOTIVO_ESTRECHO);
+    assert_int_equal(CONFIG_ANCHO_MIN_TEMP_CENTI, 100);
+    assert_int_equal(CONFIG_ANCHO_MIN_HR_CENTI, 400);
+
+    /* Tambien al cargar el archivo. */
+    config_t c = config_con(0);
+    config_motivo_t m[CONFIG_N_CAMPOS];
+    c.temp_min_centi = 2150;
+    c.temp_max_centi = 2200;
+    assert_int_equal(config_validar(&c, m), 1);
+    assert_int_equal(m[CONFIG_CAMPO_TEMP_MAX], CONFIG_MOTIVO_ESTRECHO);
 }
 
 static void pu14_password_longitud(void **state) {
@@ -590,6 +614,7 @@ int main(void) {
         cmocka_unit_test(pu14_fuera_de_rango),
         cmocka_unit_test(pu14_formato_numerico),
         cmocka_unit_test(pu14_minimo_no_menor_que_maximo),
+        cmocka_unit_test(pu14_rango_minimo_por_histeresis),
         cmocka_unit_test(pu14_password_longitud),
         cmocka_unit_test(pu14_nombre_caracteres),
         cmocka_unit_test(pu14_ntp),

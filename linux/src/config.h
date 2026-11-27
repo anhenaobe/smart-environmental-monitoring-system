@@ -16,6 +16,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "alarm.h"
+
 #define CONFIG_NOMBRE_MAX   40u   /* bytes, sin el '\0' */
 #define CONFIG_NTP_MAX      253u  /* longitud maxima de un nombre de host */
 #define CONFIG_HASH_MAX     128u  /* capacidad de admin_hash con '\0' */
@@ -31,6 +33,10 @@
 #define CONFIG_TEMP_MAX_CENTI 6000
 #define CONFIG_HR_MIN_CENTI   500
 #define CONFIG_HR_MAX_CENTI   9500
+/* Decision de Mateo (2026-11-27): max - min >= 2 x histeresis de RF-24, para
+ * que exista la banda [min + h, max - h] donde la alarma se desactiva. */
+#define CONFIG_ANCHO_MIN_TEMP_CENTI (2 * ALARM_HISTERESIS_TEMP_CENTI)  /* 1,0 °C */
+#define CONFIG_ANCHO_MIN_HR_CENTI   (2 * ALARM_HISTERESIS_HR_CENTI)    /* 4 puntos */
 
 typedef struct {
     char nombre[CONFIG_NOMBRE_MAX + 1u];
@@ -64,6 +70,7 @@ typedef enum {
     CONFIG_MOTIVO_FORMATO,   /* no es un numero / hash invalido / host invalido */
     CONFIG_MOTIVO_RANGO,     /* numero fuera del rango permitido */
     CONFIG_MOTIVO_ORDEN,     /* minimo >= maximo (se marca en el campo maximo) */
+    CONFIG_MOTIVO_ESTRECHO,  /* maximo - minimo < 2 x histeresis de RF-24 (en el maximo) */
     CONFIG_MOTIVO_LONGITUD,  /* texto demasiado corto o largo */
     CONFIG_MOTIVO_CARACTER   /* caracter no permitido */
 } config_motivo_t;

@@ -182,15 +182,20 @@ static config_motivo_t rango_centi(int32_t v, int32_t min, int32_t max) {
     return (v < min || v > max) ? CONFIG_MOTIVO_RANGO : CONFIG_MOTIVO_OK;
 }
 
-/* mín < máx en temperatura y en HR; el error se marca en el máximo. */
+/* mín < máx y máx - mín >= ancho mínimo; el error se marca en el máximo. */
+static void validar_par(config_motivo_t m[CONFIG_N_CAMPOS], config_campo_t cmin,
+                        config_campo_t cmax, int32_t min, int32_t max, int32_t ancho) {
+    if (m[cmin] != CONFIG_MOTIVO_OK || m[cmax] != CONFIG_MOTIVO_OK) return;
+    if (min >= max) m[cmax] = CONFIG_MOTIVO_ORDEN;
+    else if (max - min < ancho) m[cmax] = CONFIG_MOTIVO_ESTRECHO;
+}
+
 static void validar_orden(config_motivo_t m[CONFIG_N_CAMPOS], int32_t tmin, int32_t tmax,
                           int32_t hmin, int32_t hmax) {
-    if (m[CONFIG_CAMPO_TEMP_MIN] == CONFIG_MOTIVO_OK &&
-        m[CONFIG_CAMPO_TEMP_MAX] == CONFIG_MOTIVO_OK && tmin >= tmax)
-        m[CONFIG_CAMPO_TEMP_MAX] = CONFIG_MOTIVO_ORDEN;
-    if (m[CONFIG_CAMPO_HR_MIN] == CONFIG_MOTIVO_OK &&
-        m[CONFIG_CAMPO_HR_MAX] == CONFIG_MOTIVO_OK && hmin >= hmax)
-        m[CONFIG_CAMPO_HR_MAX] = CONFIG_MOTIVO_ORDEN;
+    validar_par(m, CONFIG_CAMPO_TEMP_MIN, CONFIG_CAMPO_TEMP_MAX, tmin, tmax,
+                CONFIG_ANCHO_MIN_TEMP_CENTI);
+    validar_par(m, CONFIG_CAMPO_HR_MIN, CONFIG_CAMPO_HR_MAX, hmin, hmax,
+                CONFIG_ANCHO_MIN_HR_CENTI);
 }
 
 static int contar_errores(const config_motivo_t m[CONFIG_N_CAMPOS]) {

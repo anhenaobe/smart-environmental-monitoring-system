@@ -36,7 +36,7 @@ $(TEST_TARGET): $(TEST_SRC) src/metrics.h
 $(PARSER_TARGET): $(PARSER_SRC) src/parser.h
 	$(CC) $(TEST_CFLAGS) $(PARSER_SRC) -o $@ $(TEST_LDLIBS)
 
-$(CONFIG_TARGET): $(CONFIG_SRC) src/config.h
+$(CONFIG_TARGET): $(CONFIG_SRC) src/config.h src/alarm.h
 	$(CC) $(TEST_CFLAGS) $(CONFIG_SRC) -o $@ $(TEST_LDLIBS) -lcrypt
 
 test_parser: $(PARSER_TARGET)
