@@ -38,11 +38,13 @@ int errores = config_desde_formulario(&form, &cfg, m);
 | Contraseña | 8 a 64 bytes, sin caracteres de control |
 | NTP | Vacío (sin NTP) o nombre de host válido |
 | Intervalo | 60 a 3600 s (RF-21) |
-| Temperatura | −20 a 60 °C (rango del DHT11 V1.3); mín < máx |
-| HR | 5 a 95 % (rango del DHT11 V1.3); mín < máx |
+| Temperatura | −20 a 60 °C (rango del DHT11 V1.3); mín < máx y máx − mín ≥ 1,0 °C |
+| HR | 5 a 95 % (rango del DHT11 V1.3); mín < máx y máx − mín ≥ 4 puntos |
 | Retención | 1 a 30 días (RF-22) |
 
-El error de "mín ≥ máx" se marca en el campo **máximo**. Por qué se rechazan `=` y saltos de línea: el archivo es `clave=valor` por línea; un nombre con `\n` permitiría inyectar otra clave. `<>&"'` se rechazan para no tener que escapar el nombre en HTML.
+El error de "mín ≥ máx" (`ORDEN`) y el de rango demasiado estrecho (`ESTRECHO`) se marcan en el campo **máximo**.
+
+**Rango mínimo (decisión de validación de Mateo).** Se exige `máx − mín ≥ 2 × histéresis` de RF-24 (1,0 °C y 4 puntos de HR). Con un rango menor, la banda de desactivación `[mín + h ; máx − h]` queda vacía y la alarma no se apagaría nunca. Ejemplo: con 20,0–20,5 °C haría falta una lectura ≥ 20,5 y ≤ 20,0 a la vez. No es una cifra de conservación; se deriva de la histéresis. Por qué se rechazan `=` y saltos de línea: el archivo es `clave=valor` por línea; un nombre con `\n` permitiría inyectar otra clave. `<>&"'` se rechazan para no tener que escapar el nombre en HTML.
 
 **Carga estricta.** `config_cargar` devuelve `OK`, `NO_EXISTE` (modo bring-up), `INVALIDA` o `ERROR_IO`. Es inválido un archivo que no termina en `\n`, al que le falta una clave, con una clave repetida o desconocida, o con un valor fuera de rango. Con `INVALIDA` el equipo entra en bring-up, **no borra el archivo** y deja el motivo en el log (decisión de Mateo: se conserva la evidencia).
 
@@ -82,7 +84,7 @@ inicio_utc,hora_ok,n_validas,temp_prom,temp_min,temp_max,hr_prom,hr_min,hr_max
 
 - **Rotación diaria (RF-22, PU-11):** el nombre del archivo es la fecha **local** del inicio del intervalo (`AAAA-MM-DD.csv`); al cambiar el día se escribe en otro archivo, sin renombrar nada.
 - **Retención:** al arrancar y cada vez que cambia el día local se borran los CSV anteriores a los últimos N días (el día actual cuenta como uno). Con 7 quedan hoy y los 6 anteriores. No toca otros archivos ni fechas futuras.
-- **Hora no válida:** si el reloj marca antes del 2026-01-01 (la Duo S no tiene batería de RTC), la fila lleva `hora_ok = 0`. Si el reloj retrocede, se cierra el intervalo en curso y se abre uno nuevo. Ojo: cuando NTP corrige la hora, el archivo `1970-01-01.csv` queda fuera de la retención y se borra el mismo día.
+- **Hora no válida:** si el reloj marca antes del 2026-01-01 (la Duo S no tiene batería de RTC), la fila lleva `hora_ok = 0` y va a un archivo con esa fecha, por ejemplo `1970-01-01.csv`. **La retención no borra los archivos con fecha anterior a 2026-01-01** (decisión de Mateo): se conservan como evidencia y los elimina el factory reset. Si el reloj retrocede, se cierra el intervalo en curso y se abre uno nuevo.
 - **Escrituras (RNF-08):** una sola `write` + `fsync` por intervalo, es decir, como máximo una por minuto. Ante un corte se pierde como máximo el intervalo en curso; si quedó una fila a medias, la siguiente empieza en una línea nueva.
 
 ## 3. Flujo de una medición, de la UART a la web
@@ -146,6 +148,6 @@ Se detallará con la prueba PU-12 en la Fase B.
 ## 8. Pendientes y limitaciones conocidas (Fase A)
 
 - **"Sin datos" momentáneo** con una trama perdida (§2.2): pendiente de acordar con Andrew un umbral de ~7 s.
-- **Rango más estrecho que la histéresis:** si `máx − mín` es menor que 1,0 °C (o que 4 puntos de HR), la banda de desactivación queda vacía y la alarma nunca se apaga por histéresis. La validación actual solo exige mín < máx; queda como decisión pendiente.
-- La **verificación formal** de PU-07, PU-09, PU-13 y PU-14 corresponde a Andrew, y la de PU-11 y PU-15 a Juan Fernando (matriz de verificación). Las pruebas de esta fase son de desarrollo.
+- La **verificación formal** de PU-07, PU-09, PU-11, PU-13, PU-14 y PU-15 corresponde a Juan Fernando (la de PU-07, PU-09, PU-13 y PU-14 se le reasignó el 2026-11-27 por disponibilidad de Andrew). Las pruebas de esta fase son de desarrollo.
+- Los archivos sin hora válida no tienen retención: si el equipo funciona mucho tiempo sin NTP ni hora del navegador, crecen sin límite (unos 86 kB por día con intervalo de 60 s).
 - Falta confirmar en la imagen de la Duo S que `libcrypt` admite `$6$`.
