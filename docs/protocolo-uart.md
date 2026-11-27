@@ -2,6 +2,8 @@
 
 Versión: 0.2 (borrador). Cambios frente a 0.1: `STA` agrega `lazo_max_us` y `pila_libre_b` (RF-07). Los checksums de todos los ejemplos se recalcularon con un script.
 
+**Nota de revisión DHT11:** cambio de cadencia y semántica del sensor (sin cambio del formato en el cable), pendiente de coordinación con la revisión v0.3 de Mateo.
+
 Este documento es la única definición válida del protocolo. Cualquier cambio en el firmware o en el servicio Linux debe reflejarse primero aquí, y lo acuerdan quien implementa el firmware y quien implementa el servicio Linux.
 
 ## 1. Capa física
@@ -49,7 +51,7 @@ Ejemplo: para `$ENV,00000042,+02450,05310,0*` el checksum se calcula sobre `ENV,
 
 ## 3. Mensajes STM32 → Milk-V
 
-### `ENV`: medición (cada 1 s)
+### `ENV`: medición (cada 3 s en modo normal DHT11; cada 1 s en modo sintético de ensayo)
 
 ```
 $ENV,<seq>,<temp>,<hr>,<estado>*<CS>
@@ -57,7 +59,7 @@ $ENV,<seq>,<temp>,<hr>,<estado>*<CS>
 
 | Campo | Formato | Descripción |
 |---|---|---|
-| `seq` | 8 dígitos decimales | Consecutivo; vuelve a 0 después de 99999999 (~3 años a 1 Hz). Sirve para detectar tramas perdidas. |
+| `seq` | 8 dígitos decimales | Consecutivo; vuelve a 0 después de 99999999 (~9,5 años a 3 s; ~3,17 años en modo sintético a 1 Hz). Sirve para detectar tramas perdidas. |
 | `temp` | signo + 5 dígitos | Temperatura en centésimas de °C. `+02450` = 24,50 °C; `-00520` = −5,20 °C. |
 | `hr` | 5 dígitos | Humedad relativa en centésimas de %. `05310` = 53,10 %. |
 | `estado` | 1 dígito | Ver tabla de estados. |
@@ -67,9 +69,11 @@ Si `estado ≠ 0`, `temp` y `hr` van vacíos: `$ENV,00000043,,,1*CS`.
 | Estado | Significado |
 |---|---|
 | 0 | Lectura válida |
-| 1 | El sensor no responde (NACK en I²C) |
-| 2 | CRC del sensor inválido |
-| 3 | Lectura fuera del rango físico del sensor |
+| 1 | El sensor no responde, vence el tiempo de espera o los pulsos del bus DATA son inválidos |
+| 2 | Suma de comprobación del sensor inválida (checksum aditivo DHT11; no es el XOR UART) |
+| 3 | Lectura con checksum válido, pero formato o valor fuera del rango admitido del sensor |
+
+Los campos, anchos, separadores y XOR UART se conservan. No publicar una lectura inválida ni repetir la última válida como si fuese nueva. Una trama ENV inválida debe invalidar la medición actual; mantener el límite de frescura de 5 s desde la última ENV válida y nueva. El sello temporal de recepción no equivale necesariamente al instante de adquisición interna del DHT11.
 
 ### `STA`: estado del microcontrolador (cada 10 s y al arrancar)
 
@@ -80,7 +84,7 @@ $STA,<uptime_s>,<err_i2c>,<causa_reset>,<fw>,<lazo_max_us>,<pila_libre_b>*<CS>
 | Campo | Descripción |
 |---|---|
 | `uptime_s` | Segundos desde el último arranque del STM32 |
-| `err_i2c` | Errores I²C acumulados desde el arranque |
+| `err_i2c` | Fallas de comunicación del sensor (estados 1 y 2) acumuladas desde el arranque. Nombre legado de compatibilidad; el DHT11 no usa I²C. |
 | `causa_reset` | Leída de `RCC_CSR`: 0 = encendido/BOR, 1 = pin NRST, 2 = watchdog IWDG, 3 = software, 4 = otra |
 | `fw` | Versión del firmware, `MAJ.MIN.PAT` |
 | `lazo_max_us` | 5 dígitos: duración máxima de una iteración del lazo principal desde el último `STA`, en µs (medida con un temporizador o DWT `CYCCNT`); se satura en 99999. Se reinicia tras cada envío. *(v0.2, RF-07)* |

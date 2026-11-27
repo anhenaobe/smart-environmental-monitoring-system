@@ -1,4 +1,4 @@
-# Firmware STM32 — v0.2.0
+# Firmware STM32 — v0.3.0 — DHT11
 
 Código común C/HAL para **NUCLEO-L432KC** (256 KiB flash, 64 KiB SRAM) y
 **NUCLEO-L412KB** (128 KiB flash, 40 KiB SRAM). Mismo circuito y contrato UART;
@@ -28,7 +28,7 @@ el USB Micro-B de ST-LINK para compilar/programar/depurar; **el puerto COM
 virtual de ST-LINK no es la UART de datos** (ver pinout).
 
 Las versiones de las herramientas se fijan en [platformio.ini](platformio.ini).
-El firmware real reporta `fw=0.2.0` en `STA`.
+El firmware real reporta `fw=0.3.0` en `STA`.
 
 ## 2. Cableado (válido para las dos NUCLEO-32 MB1180)
 
@@ -37,9 +37,8 @@ El firmware real reporta `fw=0.2.0` en `STA`.
 | USART1 TX (AF7) | PA9 | D1 / CN3.1 | RX UART dedicada de Milk-V |
 | USART1 RX (AF7) | PA10 | D0 / CN3.2 | TX UART dedicada de Milk-V |
 | GND | — | CN3.4 o CN4.2 | GND común SBC–MCU–sensor |
-| I²C1 SCL (AF4) | PB6 | D5 / CN3.8, A5 / CN4.7 si SB16 cerrado | SCL del SHT31 |
-| I²C1 SDA (AF4) | PB7 | D4 / CN3.7, A4 / CN4.8 si SB18 cerrado | SDA del SHT31 |
-| Sensor 3.3 V | — | +3V3 / CN4.14 | VDD del SHT31 |
+| DHT11 DATA | PB5 | D11 / CN3.14 | DATA/S del DHT11, pull-up a 3,3 V |
+| Sensor 3.3 V | — | +3V3 / CN4.14 | VDD del DHT11 (verificar versión) |
 | LED verde | PB3 | D13 / CN4.15 | LD3 a bordo (SB15 cerrado) |
 | LED rojo | PB0 | D3 / CN3.6 | Ánodo LED vía 330 Ω, cátodo a GND |
 | Botón factory reset | PA12 | D2 / CN3.5 | Pulsador normalmente abierto a GND, pull-up interno |
@@ -51,16 +50,21 @@ El firmware real reporta `fw=0.2.0` en `STA`.
 - Retirar el jumper de demostración D2–GND, si viene instalado. Si D2 queda
   a GND iniciará una solicitud de reset a los 10 s. El botón B1 del NUCLEO es
   **NRST** de MCU, no el botón de aplicación.
-- Comprobar los puentes SB16/SB18 con continuidad (placa sin alimentación);
-  conectan los GPIO I²C PB6/PB7 también a los pines A5/A4. Usar SCL/SDA por
-  A5/A4 si los puentes están cerrados, o D5/D4 si están abiertos; nunca
-  conectar otras funciones a esos cuatro pines. PA5 y PA6 quedan flotantes
-  por código. No soldar/desoldar los puentes solo para este proyecto.
-- Las líneas del SHT31 necesitan pull-up a **3,3 V** (p.ej. 4,7 kΩ si el
-  breakout no las trae; confirmar con multímetro). Dirección I²C de 7 bits
-  por defecto `0x44`. Si su placa usa `0x45`, añadir
-  `-DSHT31_ADDR=0x45` a `build_flags` del ambiente escogido y recompilar.
-  No es necesario modificar el código HAL.
+- **No usar los antiguos pines PB6/PB7 del SHT31**. DHT11 usa un bus
+  digital de una sola línea, no I²C ni Dallas/Maxim 1-Wire. PB5 en modo
+  GPIO deja disponible la UART y los pines de botón/LED/depuración.
+- Para el DHT11 desnudo de cuatro pines, con rejilla hacia el observador
+  y patillas hacia abajo, de izquierda a derecha: VDD, DATA, NC
+  (sin conectar), GND. Si es un módulo de tres pines, seguir las
+  etiquetas de la PCB; el orden puede variar.
+- Conectar DATA a PB5 y una resistencia de **4,7 kΩ a 3,3 V** si el
+  módulo no la incluye. Mantener el cable corto. La hoja ASAIR V1.3
+  admite alimentación de 3,3 V; comprobar que el sensor/módulo real
+  también la admite. Algunas versiones antiguas especifican mínimo
+  3,5 V. **No conectar DATA a 5 V**: si necesita alimentación distinta
+  de 3,3 V, revisar el pull-up del módulo y acordar adaptación de
+  niveles antes de conectarlo. No poner otra resistencia en serie
+  para "bajar" el voltaje.
 - No ocupar la consola Linux para la UART de datos. USART1 en PA9/PA10
   deja libres PA2/PA15, reservados para el VCP de ST-LINK.
 
@@ -68,29 +72,60 @@ Fuentes oficiales de ST:
 [UM1956, tablas 7–8 y 15–16, figura 8](https://www.st.com/resource/en/user_manual/um1956-stm32-nucleo32-boards-mb1180-stmicroelectronics.pdf),
 [DS11451 STM32L432KC](https://www.st.com/resource/en/datasheet/stm32l432kc.pdf),
 [DS12469 STM32L412KB](https://www.st.com/resource/en/datasheet/stm32l412kb.pdf).
-[SHT3x-DIS, Sensirion (tablas 4–6, 8–10)](https://sensirion.com/media/documents/213E6A3B/63A5A569/Datasheet_SHT3x_DIS.pdf).
-Las tablas de funciones alternativas de ambos MCU confirman AF4 (I²C1) y
-AF7 (USART1).
+[Manual DHT11 ASAIR/Aosong V1.3_20170331, §§5–7](https://www.aosong.com/userfiles/files/media/DHT11-V1_3%E8%AF%B4%E6%98%8E%E4%B9%A6%EF%BC%88%E8%AF%A6%E7%BB%86%E7%89%88%EF%BC%89.pdf).
+Las tablas de pines de ambas NUCLEO confirman PB5/D11 y AF7 (USART1).
 
 ## 3. Funciones y límites
 
-- HSI16 como reloj del MCU y kernel I²C a 16 MHz (no depende de ST-LINK ni
-  de cristal externo). SysTick de 1 ms, con vector fuerte `SysTick_Handler`
-  que ejecuta `HAL_IncTick`.
-- I²C estándar nominal conservador <100 kHz, `TIMINGR=0x30411417`:
-  PRESC=3, SCLDEL=4, SDADEL=1, SCLH=20, SCLL=23. El valor se deriva del reloj
-  de 16 MHz y márgenes de modo estándar; verificar nivel, tiempos de subida
-  y frecuencia con analizador/oscilo antes de darlo por validado. El reloj
-  observado puede variar por el RC y la carga del bus.
-- Lectura SHT31 de alta repetibilidad cada 1 s: comando 0x2400 sin clock
-  stretching, espera no bloqueante de 20 ms, lectura de 6 bytes, CRC-8 de
-  temperatura y humedad y conversión a centésimas sin coma flotante.
-- `ENV` transmite siempre una observación por segundo (incluyendo falla,
-  sin números falsos en lecturas inválidas). Ante NACK/timeout/bus no
-  disponible se reporta código 1 y se reinicializa el periférico para
-  reintentar en la siguiente muestra; una falla física persistente puede
-  impedir recuperar el bus. Los CRC inválidos y lecturas fuera del rango
-  de operación −40…125 °C reportan estados 2 y 3.
+- HSI16 como reloj del MCU (no depende de ST-LINK ni de cristal externo).
+  SysTick de 1 ms, con vector fuerte `SysTick_Handler` que ejecuta
+  `HAL_IncTick`; DWT a 16 ciclos/µs.
+- El DHT11 real se consulta **cada 3 s**, respetando el intervalo >2 s
+  indicado en ASAIR V1.3. Se espera 2 s antes del primer intento tras
+  arrancar; el sensor requiere ≥1 s de estabilización. No se hacen
+  ráfagas compensatorias si se atrasa un ciclo.
+- El MCU tira DATA a 0 durante 20 ms sin bloquear el lazo. Luego
+  escribe 1 en la salida open-drain, lo que deja la línea en alta
+  impedancia, y espera la respuesta (aprox. 83 µs baja, 87 µs alta)
+  y los 40 bits MSB primero. Cada espera de flanco tiene un plazo
+  acotado de hasta 120 µs; los pulsos altos de 0 y 1 (nominales
+  23–27 y 68–74 µs) se discriminan con ventanas tolerantes que
+  rechazan la zona intermedia. Se comprueba también el flanco final.
+  Para detectar la subida de DATA tras liberarla se enmascaran las IRQ
+  como máximo ~45 µs, menos de un carácter UART 8N1 a 115200 baudios.
+  Durante la captura de respuesta y bits las interrupciones UART/SysTick
+  siguen habilitadas; si una interferencia provoca tiempos inválidos,
+  se rechaza la lectura y se reintenta a los 3 s. Se difieren las
+  transmisiones bloqueantes de BTN/STA mientras el pulso START está
+  a 0 (~20 ms) para no prolongarlo. Si se exceden los 30 ms se libera
+  la línea y se reporta estado 1. No usar breakpoints dentro de la
+  captura de pulsos para validar tiempos.
+- Formato DHT11 V1.3: humedad entera, byte de fracción HR obligatorio
+  cero, magnitud entera de temperatura, décimas de temperatura en
+  los 7 bits inferiores del cuarto byte (bit 7 indica signo negativo),
+  y checksum aditivo de los cuatro bytes previos módulo 256. Se admite
+  el formato entero de las variantes antiguas (fracción 0). Otros
+  formatos con fracción de humedad no se interpretan automáticamente.
+  Se aceptan valores −20…60 °C y 5…95 % HR según la hoja V1.3, con
+  formato UART preservado en centésimas, sin fingir resolución de 0,01.
+  Revisiones antiguas tienen rango más estrecho; comprobar el módulo
+  antes de adoptar el rango/precisión nominal de V1.3.
+- Una sola trama `ENV` por intento real, al término de la consulta;
+  el sensor devuelve su última medición interna, no necesariamente
+  instantánea al comienzo del trigger. El MCU **no genera tramas
+  intermedias con datos copiados ni repite lecturas en caché**.
+  Estado 1 = falta de respuesta, timeout o temporización inválida;
+  2 = checksum aditivo incorrecto; 3 = formato o valor inválido
+  (checksum correcto). En los tres casos, campos de medición vacíos.
+  El campo de `STA` llamado `err_i2c` se conserva por compatibilidad y
+  cuenta los estados 1 y 2; el firmware ya no usa I²C.
+  Una reconexión puede requerir un nuevo ciclo completo de 3 s
+  adicional por el tiempo de estabilización. No se declara un tiempo
+  de recuperación comprobado sin conexión física.
+- El DHT11 es un sensor básico (precisión nominal ±2 °C / ±5 puntos
+  porcentuales de HR para el manual V1.3, en condiciones de referencia);
+  la compatibilidad con el perfil documental y la incertidumbre no
+  quedan demostradas por el formato numérico ni por esta compilación.
 - Recepción UART 115200 8N1 por interrupción, cola acotada de 128 bytes,
   parser XOR, re-sincronización por `$`; se descartan tramas inválidas.
   Se sigue sensando incluso si `SYS` no llega (>5 s).
@@ -125,8 +160,8 @@ Sustituir `nucleo_l432kc` por `nucleo_l412kb` si esa es la placa.
 ```sh
 pio run -d firmware -e nucleo_l432kc_synthetic -t upload
 ```
-Reporta versión `0.2.90` y mediciones constantes **inventadas** 21,50 °C,
-45,00 % HR. No valida el SHT31 ni las condiciones del gabinete. Mantener
+Reporta versión `0.3.90` y mediciones constantes **inventadas** 21,50 °C,
+45,00 % HR a 1 Hz. No valida el DHT11 ni las condiciones del gabinete. Mantener
 la placa desconectada de cualquier instalación real y borrar historial
 de prueba antes de evaluar el monitoreo.
 
@@ -134,7 +169,7 @@ de prueba antes de evaluar el monitoreo.
 ```sh
 pio run -d firmware -e nucleo_l432kc_watchdog_test -t upload
 ```
-Versión `0.2.91`. Sin debugger detenido, a los 15 s desde un arranque que
+Versión `0.3.91`. Sin debugger detenido, a los 15 s desde un arranque que
 no fue IWDG bloquea voluntariamente el lazo; cerca de 4 s después debe
 reiniciar y emitir `STA` con causa 2. No se repite el bloqueo después de
 ese reset IWDG; tras 15 s del nuevo arranque llama a una función con
@@ -146,18 +181,24 @@ analizador lógico; comparar el máximo observado en un intervalo de
 
 **Reprogramar siempre con target normal después de estos diagnósticos.**
 
-Para ensayar botón/led/CRC/conversión sin hardware, usar (desde la raíz)
-`make -C tests check`; la máquina de estados está en
-`src/env_control.c`, sin dependencias de HAL.
+Para ensayar botón/LED, protocolo UART, checksum aditivo, formato y
+clasificación de pulsos DHT11 sin hardware, usar (desde la raíz)
+`make -C tests check`. La máquina de estados (`src/env_control.c`) y el
+decodificador (`src/env_dht11.c`) no dependen de HAL.
 
 ## 5. Checklist física
 
 1. Identificar referencia NUCLEO y medir 3,3 V; retirar jumper D2–GND.
 2. Compilar/programar el target normal, conectar LED rojo y pulsador.
 3. Usar adaptador UART TTL de 3,3 V en PA9/PA10/GND (no RS232 ±12 V).
-   Abrir terminal a 115200 8N1; observar `STA` de arranque y `ENV` a 1 Hz.
-4. Conectar sensor, verificar lecturas y medir I²C. Desconectar/reconectar
-   sensor; comprobar `ENV` con estado 1 y regreso a 0 en ≤2 s.
+   Abrir terminal a 115200 8N1; observar `STA` de arranque y `ENV` cada 3 s
+   (la variante sintética envía cada segundo).
+4. Conectar sensor a PB5, verificar lecturas y, en DATA, el pulso de
+   inicio 18–30 ms, el ACK y los pulsos de datos del sensor. Verificar
+   que el bus en reposo sea 3,3 V. Desconectar/reconectar el sensor
+   (con el cable DATA libre de cortos); observar `ENV` estado 1 y
+   posterior regreso a 0. Registrar el tiempo, considerando el intervalo
+   de 3 s y el tiempo de estabilización del propio sensor.
 5. Conectar UART dedicada de Milk-V sólo después de identificarla y
    verificar cableado. Iniciar utilidad de prueba del lado SBC; comprobar
    `SYS`, `STA` y `ENV` conforme al protocolo.
@@ -170,7 +211,7 @@ Para ensayar botón/led/CRC/conversión sin hardware, usar (desde la raíz)
    flashear el normal. Realizar la prueba continua de 24 h del conjunto.
 
 La compilación y pruebas unitarias no verifican el funcionamiento eléctrico:
-queda pendiente programar y ejecutar en ambas NUCLEO, comprobar SHT31,
+queda pendiente programar y ejecutar en ambas NUCLEO, comprobar DHT11,
 cableado Milk-V, formas de onda, reset real, precisión y prueba continua.
 Los resultados formales se registran en la matriz del proyecto después de
 ejecutar las pruebas físicas; no se declaran PASS anticipadamente.

@@ -1,12 +1,12 @@
 # Fundamentación para conservación documental
 
-Versión 0.1 · 2026-11-20 · propuesta pendiente de revisión del equipo.
+Versión 0.2 · 2026-11-26 · propuesta pendiente de revisión del equipo.
 
 ## 1. Problema y alcance
 
 Las inspecciones ocasionales de temperatura y humedad de un gabinete documental dejan sin documentar fluctuaciones y extremos que ocurren fuera de horario. Un programa de monitoreo continuo permite caracterizar las condiciones que experimentan las colecciones y aportar evidencia para decidir mejoras de almacenamiento. El **NEDCC 2.2** recomienda registro continuo frente a mediciones puntuales, ubicación representativa de sensores y revisión periódica de su calibración.
 
-**Caso de aplicación:** un armario, vitrina o compartimento pequeño que guarda cartas, carpetas o libros de papel corriente; **un solo sensor SHT31** observa el aire de ese punto. El dispositivo no mide el contenido de humedad del papel, no detecta directamente moho ni daño, no regula la temperatura ni la humedad y **no representa todos los puntos de una bodega o edificio**.
+**Caso de aplicación:** un armario, vitrina o compartimento pequeño que guarda cartas, carpetas o libros de papel corriente; **un solo sensor DHT11** observa el aire de ese punto. El dispositivo no mide el contenido de humedad del papel, no detecta directamente moho ni daño, no regula la temperatura ni la humedad y **no representa todos los puntos de una bodega o edificio**.
 
 ## 2. Cifras documentadas por fuentes
 
@@ -36,20 +36,24 @@ El formulario de configuración ofrecerá como **valores iniciales editables**:
 
 | Parámetro | Valor existente | Motivo del equipo |
 |---|---:|---|
-| SHT31 y trama `ENV` (RF-01) | **1 muestra/s** | Seguimiento frecuente y detección de fallas; NEDCC 2.2 **no exige** 1 Hz |
-| Resumen de historial (RF-21) | **60 s**, configurable 60–3600 s | Reducir escritura en microSD: 86 400 muestras/día a 1 Hz frente a 1 440 intervalos/día (factor **60**) |
+| DHT11 V1.3 y trama `ENV` (RF-01) | **1 muestra/3 s** | Hoja de datos: intervalo mayor que 2 s; NEDCC 2.2 no exige 1 Hz |
+| Resumen de historial (RF-21) | **60 s**, configurable 60–3600 s | Reducir escritura en microSD: 28 800 muestras/día a 3 s frente a 1 440 intervalos/día (factor **20**) |
 | Gráfica (RF-30) | **≥24 h** | Criterio de presentación y demostración, no estudio estacional |
-| Debounce e histéresis opcional (RF-24) | **5 muestras**, **0,5 °C** o **2 puntos % HR** | Evitar transiciones repetidas en torno al umbral; verificar en PU-13, no se atribuye a NEDCC |
-| Exactitud aceptada (RNF-07) | **<±1 °C** y **<±5 puntos % HR** contra referencia | Criterio de aceptación provisional sujeto al instrumento y montaje |
+| Debounce e histéresis opcional (RF-24) | **5 muestras**, **0,5 °C** o **2 puntos % HR** | ≈12–15 s con 5 lecturas nuevas a 3 s; verificar efecto de la resolución del DHT11 sobre la histéresis en PU-13, no se atribuye a NEDCC |
+| Exactitud aceptada (RNF-07) | **≤2 °C** y **≤5 puntos % HR** de diferencia absoluta contra referencia | Objetivo provisional según exactitud de hoja de datos; sujeto a variante, alimentación, condiciones, referencia y montaje |
 | Operación continua (RNF-04) | **24 h** | Prueba académica de funcionamiento, no de clima anual |
 
 **Limitación histórica:** con registros agregados por minuto se conocen promedios y extremos; no se puede reconstruir la duración exacta de una desviación de pocos segundos si no se guarda además un conteo o evento con sello temporal. Esa funcionalidad sería una ampliación y **no se declara implementada**.
 
-La tolerancia de ±5 puntos porcentuales HR implica que ver 50 % HR no demuestra que el valor verdadero sea ≤50 %. No usar el resultado para prometer preservación garantizada.
+El DHT11 limita la exactitud: presentar centésimas en el protocolo no significa que el sensor tenga resolución de 0,01 °C o 0,01 % HR. La tolerancia de ±5 puntos porcentuales HR implica que ver 50 % HR no demuestra que el valor verdadero sea ≤50 %. No usar el resultado para prometer preservación garantizada.
+
+### Limitaciones del sensor disponible
+
+El manual Aosong DHT11 V1.3 (2017) indica alimentación 3,3–5,5 V, un periodo de lectura mayor a 2 s, rango de −20 a 60 °C / 5–95 % HR y exactitud típica ±2 °C / ±5 puntos HR en las condiciones especificadas (25 °C, 5 V, sin condensación). Revisiones antiguas tienen rangos más estrechos (0–50 °C y 20–90 % HR), pueden exigir al menos 3,5 V y recomendar más de 5 s para exactitud. Identificar el módulo antes de validar: el firmware actual apunta a V1.3, no garantiza esos límites para todos los módulos azules. Si la variante requiere otro periodo, revisar RF-01/03/04/25 con Mateo antes de cambiarlo. Los límites ambientales propuestos no se modifican por cambiar el sensor, pero la incertidumbre puede ser importante respecto a la banda de 18–22 °C. No se afirma cumplimiento de estándares de conservación ni equivalencia con un instrumento calibrado. El objetivo térmico de 0,5 °C de RNF-06 exige una referencia independiente.
 
 ## 5. Instalación y validación
 
-- Colocar el **elemento sensible** del SHT31 en el volumen del aire que rodea los documentos, a altura representativa, por encima del suelo, sin tocar los objetos; alejado de puertas, ventanas, aire acondicionado, calefacción o condensación.
+- Colocar el **elemento sensible** del DHT11 en el volumen del aire que rodea los documentos, a altura representativa, por encima del suelo, sin tocar los objetos; alejado de puertas, ventanas, aire acondicionado, calefacción o condensación.
 - Mantener Milk-V y STM32 fuera del gabinete o térmicamente aisladas de la sonda, pues podrían introducir calentamiento local (RNF-06, PS-03).
 - Anotar gabinete, posición del sensor, hora de instalación y fecha de última comparación con termohigrómetro (PS-02). Revisar calibración conforme al fabricante.
 - Una sola sonda **no garantiza uniformidad espacial**: para afirmar representación de todo el gabinete o de varios compartimentos se necesitarían medidas adicionales.
@@ -65,7 +69,10 @@ La tolerancia de ±5 puntos porcentuales HR implica que ver 50 % HR no demuestra
 
 **Estado:** hipótesis de aplicación documentada; la validación del gabinete, las placas, la calibración y la ejecución de las 53 pruebas del proyecto siguen pendientes.
 
-## 7. Referencias (consultadas el 20 de noviembre de 2026)
+## 7. Referencias (conservación: 20 de noviembre de 2026; sensor: 26 de noviembre de 2026)
+
+- Aosong Electronics. (2017). *DHT11 Digital Temperature and Humidity Sensor, V1.3*. https://aosong.com/userfiles/files/media/DHT11%E6%95%B0%E5%AD%97%E6%B8%A9%E6%B9%BF%E5%BA%A6%E4%BC%A0%E6%84%9F%E5%99%A8%E6%A8%A1%E5%9D%97.pdf
+- Aosong Electronics. *DHT11 Product Manual* (revisión anterior, copia del fabricante alojada por terceros). https://www.makerguides.com/wp-content/uploads/2019/02/DHT11-Datasheet.pdf
 
 - Northeast Document Conservation Center. (2022). *2.2 Monitoring temperature and relative humidity*. https://www.nedcc.org/free-resources/preservation-leaflets/2.-the-environment/2.2-monitoring-temperature-and-relative-humidity
 - Northeast Document Conservation Center. (2020). *2.1 Temperature, relative humidity, light, and air quality: Basic guidelines for preservation*. https://www.nedcc.org/free-resources/preservation-leaflets/2.-the-environment/2.1-temperature,-relative-humidity,-light,-and-air-quality-basic-guidelines-for-preservation

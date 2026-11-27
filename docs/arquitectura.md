@@ -1,6 +1,6 @@
 # Arquitectura de la solución
 
-Versión: 0.2 (borrador para revisión: hardware, imagen Linux y servidor HTTP aún sin validar)
+Versión: 0.3 (adaptación DHT11; hardware, imagen Linux y servidor HTTP aún sin validar)
 
 Este documento describe **cómo** se construye el sistema. El **qué** está en [requerimientos.md](requerimientos.md) y el **para qué** en [descripcion-sistema.md](descripcion-sistema.md). Los contratos entre partes están en [protocolo-uart.md](protocolo-uart.md) e [interfaces.md](interfaces.md).
 
@@ -23,7 +23,7 @@ Los diagramas están en Mermaid y GitHub los muestra directamente.
 
 ```mermaid
 flowchart LR
-    S["Sensor SHT31<br/>temperatura y humedad"] -- I²C --> F
+    S["Sensor DHT11<br/>temperatura y humedad"] -- DATA --> F
     subgraph F["STM32 · tiempo real"]
         F1[Adquisición y validación]
         F2[Protocolo UART]
@@ -71,13 +71,13 @@ flowchart LR
     end
     subgraph NUC["NUCLEO-L432KC / L412KB"]
         U1["USART1"]
-        I2C1["I2C1"]
+        DATA["GPIO PB5 / D11"]
         GPIO["GPIO"]
     end
     J3 -- "TX Duo → RX STM32 (PA10)" --> U1
     U1 -- "TX STM32 (PA9) → RX Duo" --> J3
     J3 --- GND((GND común)) --- NUC
-    I2C1 -- "SDA, SCL, 3V3, GND" --> SHT["SHT31"]
+    DATA -- "DATA, 3V3, GND" --> DHT["DHT11"]
     GPIO --> LEDV["LED verde"]
     GPIO --> LEDR["LED rojo"]
     BTN["Pulsador"] --> GPIO
@@ -91,38 +91,37 @@ flowchart LR
 | UART STM32 TX → Linux RX | PA9 (D1), USART1 | Candidata UART2 RX, B12/J3 pin 13 | No usar UART0 del J3 (pines 8 y 10): es la consola de Linux |
 | UART Linux TX → STM32 RX | PA10 (D0), USART1 | Candidata UART2 TX, B11/J3 pin 11 | La USART2 del NUCLEO va al ST-LINK (puerto virtual) y queda para depuración |
 | GND | GND | J3 pin 6 | Revisar la versión de la placa: el pin 9 es GPIO en v1.1 y GND desde v1.2 |
-| I²C SDA | PB7 (D4), I2C1 | — | Pull-ups en el módulo del sensor |
-| I²C SCL | PB6 (D5), I2C1 | — | |
+| DHT11 DATA | PB5 (D11), GPIO open-drain | — | Pull-up de 4,7 kΩ a 3,3 V; verificar revisión del módulo |
 | LED verde | PB3/D13 (LD3 de placa) | — | Resistencia en serie según el LED |
 | LED rojo | PB0/D3 (LED externo) | — | |
 | Botón de reset | PA12/D2 (pulsador externo con pull-up) | — | Activo en bajo, antirrebote por software |
 
-Los pines del NUCLEO se contrastaron con el manual UM1956; comprobar puentes de soldadura/pines I²C (ver firmware/README.md) y continuidad antes de cablear. El pulsador NRST no es el pulsador de factory reset. La selección UART2 de la Milk-V es solo candidata hasta comprobar DT, pinmux y loopback. Las alimentaciones de las dos placas **no** se unen; solo se comparte GND.
+Los pines del NUCLEO se contrastaron con el manual UM1956; comprobar puentes de soldadura/pines GPIO (ver firmware/README.md) y continuidad antes de cablear. El pulsador NRST no es el pulsador de factory reset. La selección UART2 de la Milk-V es solo candidata hasta comprobar DT, pinmux y loopback. Las alimentaciones de las dos placas **no** se unen; solo se comparte GND.
 
 ## 4. Firmware del STM32
 
-Lazo principal cooperativo (*superloop*) sin RTOS, con una base de tiempo de 1 ms (SysTick). Cada tarea revisa si le toca y retorna; las operaciones HAL de I²C y UART tienen tiempos de espera acotados. No se espera indefinidamente a Linux ni a la conversión del sensor.
+Lazo principal cooperativo (*superloop*) sin RTOS, con una base de tiempo de 1 ms (SysTick). Cada tarea revisa si le toca y retorna; las operaciones GPIO de DHT11 y UART tienen tiempos de espera acotados. No se espera indefinidamente a Linux ni a la conversión del sensor.
 
 ```mermaid
 flowchart TB
-    START([Arranque]) --> INIT["Reloj, GPIO, I2C1, USART1,<br/>leer RCC_CSR, rellenar pila, IWDG"]
+    START([Arranque]) --> INIT["Reloj, GPIO, DWT, USART1,<br/>leer RCC_CSR, rellenar pila, IWDG"]
     INIT --> LOOP{Lazo principal}
-    LOOP --> T1["sensor_tarea · cada 1 s<br/>pedir medición → esperar 20 ms → leer y validar CRC"]
+    LOOP --> T1["sensor_tarea · cada 3 s<br/>pulso de inicio → temporizar 40 bits → validar checksum"]
     LOOP --> T2["uart_rx_tarea · siempre<br/>bytes del búfer circular → parser → SYS / ACK"]
     LOOP --> T3["boton_tarea · cada 10 ms<br/>antirrebote y conteo de 10 s"]
     LOOP --> T4["leds_tarea · cada 10 ms<br/>patrón del estado de mayor prioridad"]
-    LOOP --> T5["tx_tarea · ENV cada 1 s, STA cada 10 s, BTN"]
+    LOOP --> T5["tx_tarea · ENV cada 3 s (1 s sintético), STA cada 10 s, BTN"]
     LOOP --> T6["instrumentación<br/>medir duración del lazo"]
     LOOP --> WD["Refrescar IWDG"]
 ```
 
 | Decisión | Motivo |
 |---|---|
-| Recepción UART por interrupción a un búfer circular | No se pierden bytes de `SYS` aunque el lazo esté ocupado leyendo el sensor |
-| Transmisión no bloqueante (interrupción o DMA) | Una trama de 33 bytes tarda ~2,9 ms a 115200 baudios; no debe frenar el lazo |
-| Medición del SHT31 en dos pasos (pedir, leer 20 ms después) | La conversión tarda hasta ~15 ms; esperar con `HAL_Delay` bloquearía todo |
-| IWDG de ~2 s refrescado solo en el lazo | Si cualquier tarea se cuelga, el lazo deja de refrescar y el STM32 se reinicia (RF-05) |
-| Lógica pura separada de la HAL (`sht31`, `protocol`, `button`, `leds`) | Se prueba en el PC con Unity (PU-01, PU-02, PU-03, PU-10) |
+| Recepción UART por interrupción a un búfer circular | Permite recibir `SYS` aunque el lazo esté ocupado leyendo el sensor; verificar pérdida y temporización en hardware |
+| Transmisión HAL síncrona con plazo máximo de 20 ms | Una trama de 33 bytes tarda ~2,9 ms a 115200 baudios; se evita transmitir STA/BTN durante el pulso de inicio del DHT11. Migrar a interrupción/DMA solo si las medidas de lazo lo requieren |
+| DHT11 con pulso de inicio no bloqueante (20 ms) y captura de microsegundos acotada | El bus es sensible a la temporización; mantener el intervalo entre adquisiciones y acotar cada espera de flanco |
+| IWDG de ~4 s refrescado solo en el lazo | Si cualquier tarea se cuelga, el lazo deja de refrescar y el STM32 se reinicia (RF-05) |
+| Lógica pura separada de la HAL (`dht11`, `env_protocol`, `env_control`) | Se prueba en el PC con C y assert (PU-01, PU-02, PU-03, PU-10) |
 
 ## 5. Software en la Milk-V
 
@@ -202,17 +201,17 @@ stateDiagram-v2
     FactoryReset --> BringUp: registros y configuración borrados (≤ 30 s)
 ```
 
-### 6.2 Funcionamiento normal (cada segundo)
+### 6.2 Funcionamiento normal (ENV cada 3 s; SYS cada 1 s)
 
 ```mermaid
 sequenceDiagram
-    participant S as SHT31
+    participant S as DHT11
     participant M as STM32
     participant L as envmond
     participant W as Navegador
-    M->>S: pedir medición (I²C)
-    Note over M: espera 20 ms sin bloquear
-    S-->>M: datos + CRC
+    M->>S: pulso LOW de inicio (DATA)
+    Note over M: liberar línea, temporizar pulsos
+    S-->>M: 40 bits + validación de suma
     M->>L: $ENV,seq,temp,hr,estado*CS
     L->>L: validar, actualizar estado, evaluar alarma
     L->>M: $SYS,1*CS (latido)
@@ -275,7 +274,7 @@ sequenceDiagram
     participant L as envmond
     L--xM: (sin $SYS durante 5 s)
     M->>M: LED "sin Linux"
-    loop cada 1 s
+    loop cada 3 s
         M->>L: $ENV (sigue midiendo y transmitiendo, RF-06)
     end
     Note over L: un supervisor probado reinicia envmond
@@ -287,7 +286,7 @@ sequenceDiagram
 
 | # | Decisión | Alternativas descartadas | Motivo | Estado |
 |---|---|---|---|---|
-| D1 | UART entre placas | SPI, I²C | En el reto anterior el SPI de la Milk-V no estuvo disponible; la UART se depura con cualquier terminal y basta para 1 trama/s | Decidida |
+| D1 | UART entre placas | SPI, I²C | En el reto anterior el SPI de la Milk-V no estuvo disponible; la UART se depura con cualquier terminal y basta para las tramas previstas (incluido ensayo a 1 Hz) | Decidida |
 | D2 | Protocolo de texto con checksum XOR | Binario con CRC | Legible en la terminal; 33 bytes/s están muy lejos del límite de 115200 baudios | Decidida |
 | D3 | C en el firmware y en Linux | Python, Node | Recomendación del curso: compilado, nativo y con menos recursos (RNF-01, RNF-02) | Decidida |
 | D4 | Un proceso de un solo hilo con servidor HTTP embebible y licencia compatible | Servicio HTTP separado y CGI; varios hilos | Menor complejidad potencial; pendiente comprobar licencia, compilación RISC-V y memoria | Propuesta, biblioteca por decidir |

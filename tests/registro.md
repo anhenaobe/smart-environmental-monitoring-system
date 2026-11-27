@@ -25,6 +25,17 @@ Valores en bytes de `arm-none-eabi-size` (text+data, data+bss incluyendo 4 KiB d
 
 Las dos versiones normales quedan bajo RNF-13 en inspección de tamaño preliminar. Ninguna prueba de matriz se marca aprobada hasta revisión cruzada.
 
+## Migración a DHT11 — firmware v0.3.0
+
+La tabla anterior corresponde al firmware anterior v0.2.0 (SHT31), no al DHT11.
+
+| Fecha | Prueba | Resultado | Evidencia / limitación |
+|---|---|---|---|
+| 2026-11-26 | Decodificación DHT11 y regresión firmware/UART | Aprobada (host) | `make -C tests check`: cuatro ejecutables; vectores DHT11 V1.3 con temperatura positiva/negativa, checksum aditivo (incluida reducción módulo 256), formato y rango, clasificación de anchos de pulso y vectores de tramas UART; regresión de protocolo/control. La temporización eléctrica no se probó. |
+| 2026-11-26 | Compatibilidad con parser real de Mateo | Aprobada (host) | `tests/test_dht11_parser_compat`: DHT11 → centésimas → encuadre UART → parser de envmond (main tras PR #5); tramas válidas, fallas 1/2/3 y STA (contador/versión) aceptadas. No es una prueba de envmond completo. Suite CMocka del parser no ejecutada aquí por falta de cmocka.h. |
+| 2026-11-26 | Probe UART — regresión PTY | Aprobada (host) | `make -C linux check`: siete pruebas, sin acceder a UART física. |
+| 2026-11-26 | Compilación y enlace ARM directo (6 variantes) | Aprobada (offline) | GCC ARM 7.2.1, HAL STM32CubeL4 1.18.1, startup oficial y scripts de enlace del repositorio, `-Wall -Wextra -Werror`; imágenes ELF/BIN para normal, sintético y watchdog en ambas placas. No se flashearon. |
+
 ## Formato de evidencia para clase
 
 Copiar una fila por sesión, guardar logs/fotos/capturas de analizador lógico junto a la evidencia del equipo y enlazarla. Identificar placa, revisión, commit, entorno, versión del binario, cableado y condiciones de ensayo.

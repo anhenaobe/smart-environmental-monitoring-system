@@ -29,6 +29,8 @@ Definido en [protocolo-uart.md](protocolo-uart.md). **Andrew implementa el extre
 ```
 
 - `estado_sistema`: mismos valores que `SYS` (0 bring-up, 1 normal, 2 alarma, 3 reset en curso).
+- `stm32.err_i2c` conserva el nombre legado del contrato y cuenta fallas de comunicación del sensor DHT11 (estados 1 y 2); mostrar «Errores del sensor» en diagnóstico.
+- La frecuencia normal de ENV es 3 s; el resumen histórico se agrega por tiempo, no por conteo fijo de tramas. SYS conserva 1 Hz.
 - Cuando `medicion.valida = false`, `temp_c` y `hr` valen `null`.
 - El registro histórico del propio `envmond` (Mateo) consume las muestras validadas en memoria y las agrega por minuto, sin leer un archivo JSON.
 
