@@ -23,8 +23,10 @@ UART_SRC = src/uart.c tests/test_uart.c
 UART_TARGET = tests/test_uart
 RESET_SRC = src/reset.c tests/test_reset.c
 RESET_TARGET = tests/test_reset
+SERVICIO_SRC = src/servicio.c src/config.c src/alarm.c src/logger.c src/parser.c src/reset.c tests/test_servicio.c
+SERVICIO_TARGET = tests/test_servicio
 
-.PHONY: all clean check test valgrind test_parser test_config test_alarm test_logger test_uart test_reset
+.PHONY: all clean check test valgrind test_parser test_config test_alarm test_logger test_uart test_reset test_servicio
 
 all: uart_probe
 
@@ -70,13 +72,19 @@ $(RESET_TARGET): $(RESET_SRC) src/reset.h
 test_uart: $(UART_TARGET)
 	./$(UART_TARGET)
 
+$(SERVICIO_TARGET): $(SERVICIO_SRC) src/servicio.h src/config.h src/alarm.h src/logger.h src/parser.h src/reset.h
+	$(CC) $(TEST_CFLAGS) $(SERVICIO_SRC) -o $@ $(TEST_LDLIBS) -lcrypt
+
 test_reset: $(RESET_TARGET)
 	./$(RESET_TARGET)
 
-test: $(TEST_TARGET) test_parser test_config test_alarm test_logger test_uart test_reset
+test_servicio: $(SERVICIO_TARGET)
+	./$(SERVICIO_TARGET)
+
+test: $(TEST_TARGET) test_parser test_config test_alarm test_logger test_uart test_reset test_servicio
 	./$(TEST_TARGET)
 
-valgrind: $(TEST_TARGET) $(PARSER_TARGET) $(CONFIG_TARGET) $(ALARM_TARGET) $(LOGGER_TARGET) $(UART_TARGET) $(RESET_TARGET)
+valgrind: $(TEST_TARGET) $(PARSER_TARGET) $(CONFIG_TARGET) $(ALARM_TARGET) $(LOGGER_TARGET) $(UART_TARGET) $(RESET_TARGET) $(SERVICIO_TARGET)
 	valgrind --leak-check=full --error-exitcode=1 ./$(TEST_TARGET)
 	valgrind --leak-check=full --error-exitcode=1 ./$(PARSER_TARGET)
 	valgrind --leak-check=full --error-exitcode=1 --trace-children=yes ./$(CONFIG_TARGET)
@@ -84,6 +92,7 @@ valgrind: $(TEST_TARGET) $(PARSER_TARGET) $(CONFIG_TARGET) $(ALARM_TARGET) $(LOG
 	valgrind --leak-check=full --error-exitcode=1 ./$(LOGGER_TARGET)
 	valgrind --leak-check=full --error-exitcode=1 ./$(UART_TARGET)
 	valgrind --leak-check=full --error-exitcode=1 --trace-children=yes ./$(RESET_TARGET)
+	valgrind --leak-check=full --error-exitcode=1 ./$(SERVICIO_TARGET)
 
 clean:
-	rm -f uart_probe $(TEST_TARGET) $(PARSER_TARGET) $(CONFIG_TARGET) $(ALARM_TARGET) $(LOGGER_TARGET) $(UART_TARGET) $(RESET_TARGET)
+	rm -f uart_probe $(TEST_TARGET) $(PARSER_TARGET) $(CONFIG_TARGET) $(ALARM_TARGET) $(LOGGER_TARGET) $(UART_TARGET) $(RESET_TARGET) $(SERVICIO_TARGET)
