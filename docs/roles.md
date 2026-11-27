@@ -28,7 +28,7 @@ Nadie verifica lo que implementó. Propuesta de verificación cruzada:
 
 Las pruebas de desarrollo propias son válidas, pero la **verificación formal** la realiza alguien que no figure entre sus implementadores.
 
-Participaciones en la matriz (una prueba compartida cuenta para cada implementador): Andrew 26 implementaciones y 11 verificaciones; Mateo 31 y 10; Juan Fernando 9 y 32. **Estos conteos no equivalen a horas de trabajo.**
+Participaciones en la matriz (una prueba compartida cuenta para cada implementador; recalculadas el 2026-11-27 tras la reasignación de verificaciones): Andrew 26 implementaciones y 4 verificaciones; Mateo 31 y 10; Juan Fernando 9 y 39. **Estos conteos no equivalen a horas de trabajo.**
 
 ## Registro de actividades
 
@@ -40,3 +40,6 @@ Participaciones en la matriz (una prueba compartida cuenta para cada implementad
 | 2026-11-19 | Mateo | Arquitectura, índice de documentación y propuesta inicial de reparto | PR #2, primer commit |
 | 2026-11-19 | Andrew (asistencia de ChatGPT) | Ajuste de roles, verificación y arquitectura tras auditoría de PR #2 | PR #2, commit de seguimiento; revisión humana pendiente |
 | 2026-11-26 | Mateo | Parser UART de envmond y pruebas PU-04, PU-05 y PU-06, con asistencia de Claude Code | Rama feat/parser (PR pendiente de verificación por Juan Fernando) |
+| 2026-11-27 | Mateo | Fase A de `envmond`: módulos `config`, `alarm` y `logger` y pruebas PU-07, PU-09, PU-11, PU-13, PU-14 y PU-15, con asistencia de Claude Code; guía de estudio `docs/guia-envmond.md` | Rama `feat/envmond-logica` (PR pendiente de verificación por Juan Fernando) |
+| 2026-11-27 | Mateo | Reasignación de la verificación formal de Andrew a Juan Fernando en PU-07, PU-09, PU-13, PU-14, PI-07, PI-14 y PB-02, por disponibilidad de Andrew. Se mantiene la regla: nadie verifica lo que implementa (Mateo implementa esas pruebas; Juan Fernando no figura como implementador) | `docs/matriz-verificacion.md`, columna «Verifica» |
+| 2026-11-27 | Mateo | Fase B de `envmond`: UART, factory reset recuperable (PU-12), núcleo del servicio, lazo `poll`, unidad systemd e integración en host con `socat`, con asistencia de Claude Code; decisión de arquitectura: un hilo de servicio + hilos HTTP de CivetWeb con mutex | Rama `feat/envmond-servicio` (PR pendiente de verificación por Juan Fernando; depende del PR #9) |

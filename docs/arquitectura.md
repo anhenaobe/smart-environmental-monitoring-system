@@ -127,9 +127,13 @@ flowchart TB
 
 ### Procesos
 
-Un único proceso propio, `envmond`, escrito en C, con servidor HTTP embebido es el diseño propuesto. **La biblioteca HTTP aún no está seleccionada**: debe ser compatible con la licencia GPL-3.0 del repositorio, compilar para la Milk-V y cumplir los límites de recursos. Mongoose no queda aprobado automáticamente; si ninguna biblioteca resulta viable, se reconsiderará un servidor ligero separado.
+Un único proceso propio, `envmond`, escrito en C, con servidor HTTP embebido. **Biblioteca HTTP: CivetWeb** (licencia MIT, compatible con GPL-3.0), vendorizada como fuente y compilada sin SSL, CGI, Lua ni WebSocket (decisión de Mateo; se integra en la Fase C).
 
-`envmond` tiene **un solo hilo** con un lazo de eventos: en cada vuelta atiende la UART (lectura no bloqueante), las conexiones HTTP y los temporizadores de 1 s (enviar `SYS`, publicar el estado) y del intervalo de registro. Un solo hilo evita candados y carreras entre la recepción, la web y el registro.
+`envmond` tiene **un hilo de servicio + hilos HTTP de CivetWeb con mutex** (decisión de Mateo, 2026-11-27):
+
+- El **hilo de servicio** ejecuta un lazo `poll()`: lee la UART sin bloquear, atiende `SIGTERM`/`SIGINT` por `signalfd` y cumple los temporizadores de 1 s (`SYS`) y del intervalo de registro. Es el **único dueño** de la UART, la alarma, el historial, la configuración y el reset.
+- CivetWeb crea sus propios hilos (uno de escucha y el mínimo de trabajadores, `num_threads` 1 o 2). Sus manejadores **solo** leen una instantánea del estado o piden aplicar una configuración; ambas operaciones pasan por un mutex que se mantiene muy poco tiempo (copiar una estructura o dejar una petición). Ningún manejador escribe archivos ni toca la UART.
+- Se descartó **un servidor HTTP mínimo propio dentro de `poll`** (mantendría un solo hilo, pero agrega código HTTP propio que habría que probar y defender en seguridad) y **Mongoose** (sí se integra en un lazo propio, pero su licencia GPLv2/comercial plantea dudas de compatibilidad con la GPL-3.0 del repositorio). CivetWeb no se integra en un `poll` ajeno: por eso se acepta el mutex.
 
 ```mermaid
 flowchart LR
@@ -167,12 +171,12 @@ flowchart LR
 |---|---|---|---|
 | `/usr/bin/envmond` | Binario del servicio | microSD | No |
 | `/usr/share/envmon/www/` | Páginas web estáticas | microSD | No |
-| Script de inicio + mecanismo de supervisión compatible con `init` | Arranque automático y recuperación tras caída de `envmond` (RF-20) | microSD | No |
+| `/lib/systemd/system/envmond.service` (+ `sysusers.d`, `tmpfiles.d`) | Arranque automático y reinicio tras caída de `envmond` con `Restart=always` (RF-20) | microSD | No |
 | `/etc/envmon/config` | Configuración del bring-up | microSD | Sí, durante el reset |
 | `/etc/envmon/reset.pending` | Marcador durable de restablecimiento pendiente | microSD | Se elimina al finalizar el reset |
 | `/var/lib/envmon/AAAA-MM-DD.csv` | Historial agregado | microSD | Sí |
 
-La imagen oficial de la Duo S está basada en Buildroot y puede usar `init` de BusyBox en lugar de systemd. En el montaje anterior uCuPViewer, la placa real usaba Debian forky/sid, kernel 5.10.4-20240527-2+, arquitectura riscv64 y systemd; [evidencia del 5 de noviembre](https://github.com/anhenaobe/uCuPViewer/blob/737c89fece8e1244e8d76db4acdbf6a78dbf1f58/docs/debug/milkv_usb_diagnostico.md). Confirmar que la imagen no cambió antes de elegir el supervisor. **Un script de arranque no reinicia por sí solo un proceso tras `kill -9`**: hay que comprobar en PI-01/PI-07 `respawn` de `init` u otro supervisor compatible con la imagen. El estado actual vive en memoria de `envmond` y se expone directamente por HTTP/JSON; no se duplica cada segundo en un archivo de `/run`.
+La imagen oficial de la Duo S está basada en Buildroot y puede usar `init` de BusyBox en lugar de systemd. En el montaje anterior uCuPViewer, la placa real usaba Debian forky/sid, kernel 5.10.4-20240527-2+, arquitectura riscv64 y systemd; [evidencia del 5 de noviembre](https://github.com/anhenaobe/uCuPViewer/blob/737c89fece8e1244e8d76db4acdbf6a78dbf1f58/docs/debug/milkv_usb_diagnostico.md). **Supervisor elegido: systemd** (decisión de Mateo), con `Restart=always`, `RestartSec=1`, usuario `envmon` y `ProtectSystem=strict`; ver `linux/systemd/`. Confirmar en PI-01 que la imagen instalada sigue usando systemd; PI-07 verifica el reinicio tras `kill -9`. El estado actual vive en memoria de `envmond` y se expone directamente por HTTP/JSON; no se duplica cada segundo en un archivo de `/run`.
 
 ### Compilación
 
@@ -289,7 +293,7 @@ sequenceDiagram
 | D1 | UART entre placas | SPI, I²C | En el reto anterior el SPI de la Milk-V no estuvo disponible; la UART se depura con cualquier terminal y basta para las tramas previstas (incluido ensayo a 1 Hz) | Decidida |
 | D2 | Protocolo de texto con checksum XOR | Binario con CRC | Legible en la terminal; 33 bytes/s están muy lejos del límite de 115200 baudios | Decidida |
 | D3 | C en el firmware y en Linux | Python, Node | Recomendación del curso: compilado, nativo y con menos recursos (RNF-01, RNF-02) | Decidida |
-| D4 | Un proceso de un solo hilo con servidor HTTP embebible y licencia compatible | Servicio HTTP separado y CGI; varios hilos | Menor complejidad potencial; pendiente comprobar licencia, compilación RISC-V y memoria | Propuesta, biblioteca por decidir |
+| D4 | Un proceso: un hilo de servicio (lazo `poll`, dueño único del estado) + hilos HTTP de CivetWeb con un mutex corto | Servicio HTTP separado y CGI; servidor HTTP propio en el lazo; Mongoose | CivetWeb (MIT) es compatible con GPL-3.0 y compila sin SSL, CGI ni Lua, pero usa sus propios hilos; el mutex se limita a copiar una instantánea o dejar una petición de configuración. El servidor propio agregaba código HTTP a probar y Mongoose tenía dudas de licencia | Decidida (Mateo, 2026-11-27); compilación RISC-V y memoria por comprobar |
 | D5 | Botón de reset en el STM32 | Botón en un GPIO de Linux; opción en la web | Funciona aunque la web no responda; evita resets accidentales desde la red | Decidida |
 | D6 | Configuración solo en Linux y reset recuperable mediante `reset.pending` | Configuración también en STM32; borrado sin marcador | Permite reanudar el reset tras corte de alimentación, sujeto a ensayos reales (RF-53) | Propuesta, pendiente validar |
 | D7 | Estado en RAM dentro de `envmond` e historial persistente por intervalo | Escribir cada medición en microSD o duplicar estado en archivo JSON | Menos E/S y menos componentes que mantener (RNF-08) | Propuesta |

@@ -1,0 +1,3 @@
+# sysusers.d(5): usuario de sistema del servicio y acceso al puerto serie.
+u envmon - "envmond, monitor ambiental" /var/lib/envmon
+m envmon dialout

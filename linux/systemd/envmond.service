@@ -1,0 +1,42 @@
+# Unidad systemd de envmond (RF-20, PI-07). Se instala con "make -C linux
+# install"; los pasos para activarla estan en linux/README.md.
+# Cambiar el puerto serie sin editar este archivo:
+#   systemctl edit envmond   ->   [Service]
+#                                 Environment=ENVMOND_UART=/dev/ttyAMA0
+[Unit]
+Description=envmond: monitor ambiental del gabinete documental
+Documentation=https://github.com/anhenaobe/smart-environmental-monitoring-system
+After=local-fs.target systemd-tmpfiles-setup.service
+# Sin limite de reinicios: Restart=always debe recuperar el servicio
+# siempre (con RestartSec=1, el limite por defecto de 5 arranques en 10 s
+# lo dejaria detenido).
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=envmon
+Group=envmon
+SupplementaryGroups=dialout
+Environment=ENVMOND_UART=/dev/serial0
+ExecStart=/usr/bin/envmond --uart ${ENVMOND_UART} --config-dir /etc/envmon --data-dir /var/lib/envmon
+Restart=always
+RestartSec=1
+
+# /var/lib/envmon: StateDirectory lo crea con dueno envmon y lo deja
+# escribible bajo ProtectSystem=strict.
+StateDirectory=envmon
+StateDirectoryMode=0750
+# /etc/envmon: ConfigurationDirectory lo crea y lo excluye del solo
+# lectura, pero NO le cambia el dueno (sigue siendo root); el dueno envmon
+# lo pone tmpfiles.d (envmond.tmpfiles). ReadWritePaths lo deja explicito.
+ConfigurationDirectory=envmon
+ConfigurationDirectoryMode=0750
+ReadWritePaths=/etc/envmon /var/lib/envmon
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

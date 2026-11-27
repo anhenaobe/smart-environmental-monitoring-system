@@ -259,3 +259,47 @@ SYS periódico, parsing y rechazo, secuencia/wrap, ausencia de ACK por defecto,
 ACK simulado, loopback, ausencia de ENV, desconexión y restauración de termios
 en cierres normales. Esto no verifica el kernel/DT real, pines, voltajes,
 transmisión eléctrica, cadencia de la STM32 ni adquisición del SHT31.
+
+## 6. Servicio `envmond`: compilación, pruebas e instalación
+
+`envmond` es el servicio definitivo (Mateo). No reemplaza a `uart_probe`: **no
+deben usar el mismo tty a la vez**. Guía de estudio: [guia-envmond.md](../docs/guia-envmond.md).
+
+```sh
+make -C linux envmond            # o "make -C linux host" en el PC
+make -C linux test valgrind      # pruebas unitarias CMocka + Valgrind
+make -C linux integracion        # host: socat + STM32 simulado, ~45 s
+make -C linux integracion-valgrind
+make -C linux integracion-larga DURACION=1800   # PI-11 (30 min bajo Valgrind)
+```
+
+Dependencias en el host: `gcc`, `make`, `libcmocka-dev`, `libcrypt-dev`,
+`valgrind`, `socat`. En la SBC solo hacen falta `gcc`, `make` y `libcrypt-dev`
+(libxcrypt; comprobar que admite `$6$`).
+
+**SBC de destino: Raspberry Pi Zero 2 W** con Raspberry Pi OS (Debian, systemd,
+aarch64); reemplaza a la Milk-V Duo S, que se perdió. Las secciones 1 a 5 de
+este documento siguen describiendo la Milk-V hasta el PR de documentación del
+cambio de SBC. Antes de instalar, habilitar la UART principal y liberarla del
+Bluetooth y de la consola (ver [guia-envmond.md §6.3](../docs/guia-envmond.md)).
+
+Instalación en la Pi (como root, desde el repo):
+
+```sh
+make -C linux install                       # binario, unidad, sysusers y tmpfiles
+systemd-sysusers                            # crea el usuario envmon (grupo dialout)
+systemd-tmpfiles --create envmond.conf      # /etc/envmon y /var/lib/envmon de envmon
+systemctl daemon-reload
+systemctl edit envmond                      # solo si la UART no es /dev/serial0:
+                                            #   [Service]
+                                            #   Environment=ENVMOND_UART=/dev/ttyAMA0
+systemctl enable --now envmond
+journalctl -u envmond -f                    # log del servicio
+```
+
+La unidad usa `Restart=always`, `RestartSec=1` y `StartLimitIntervalSec=0`
+(PI-07: reinicio en ≤ 5 s tras `kill -9`), usuario `envmon` sin privilegios,
+`NoNewPrivileges=yes` y `ProtectSystem=strict`; solo `/etc/envmon` y
+`/var/lib/envmon` son escribibles. Antes de habilitarla, confirmar que la UART
+elegida no es la consola (`/proc/cmdline` sin `console=serial0`) y que ningún
+`serial-getty` la usa.

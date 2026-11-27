@@ -1,0 +1,4 @@
+# tmpfiles.d(5): /etc/envmon pertenece a envmon para que el servicio pueda
+# escribir config y reset.pending (ConfigurationDirectory= no cambia el dueno).
+d /etc/envmon 0750 envmon envmon -
+d /var/lib/envmon 0750 envmon envmon -
