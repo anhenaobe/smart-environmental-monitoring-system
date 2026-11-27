@@ -28,7 +28,7 @@ Nadie verifica lo que implementó. Propuesta de verificación cruzada:
 
 Las pruebas de desarrollo propias son válidas, pero la **verificación formal** la realiza alguien que no figure entre sus implementadores.
 
-Participaciones en la matriz (una prueba compartida cuenta para cada implementador): Andrew 26 implementaciones y 11 verificaciones; Mateo 31 y 10; Juan Fernando 9 y 32. **Estos conteos no equivalen a horas de trabajo.**
+Participaciones en la matriz (una prueba compartida cuenta para cada implementador; recalculadas el 2026-11-27 tras la reasignación de verificaciones): Andrew 26 implementaciones y 4 verificaciones; Mateo 31 y 10; Juan Fernando 9 y 39. **Estos conteos no equivalen a horas de trabajo.**
 
 ## Registro de actividades
 
