@@ -69,4 +69,6 @@ El servicio web detecta el modo bring-up porque falta el archivo de configuraci�
 
 ## 5. Pendientes
 
-Ver [requerimientos.md §6](requerimientos.md#6-decisiones-abiertas): hash de la contraseña (`crypt()` SHA-512 propuesto) y aviso web → `envmond` (innecesario si el servidor HTTP corre dentro de `envmond`).
+Ver [requerimientos.md §6](requerimientos.md#6-decisiones-abiertas): aviso web → `envmond` (innecesario si el servidor HTTP corre dentro de `envmond`).
+
+**Hash de la contraseña (decidido, 2026-11-27):** `admin_hash` guarda el resultado de `crypt()` con SHA-512: `$6$`, una sal de 16 caracteres del alfabeto `./0-9A-Za-z` obtenida con `getrandom` y el resumen de 86 caracteres. El archivo nunca contiene la contraseña en claro.
