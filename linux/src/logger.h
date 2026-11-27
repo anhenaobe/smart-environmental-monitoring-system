@@ -66,7 +66,8 @@ int logger_vaciar(logger_t *lg);
 
 /* Borra de dir los AAAA-MM-DD.csv anteriores a los ultimos retencion_dias
  * dias locales (el dia de `ahora` cuenta como uno). Ignora otros archivos y
- * conserva fechas futuras. Devuelve cuantos borro, o -1 si no pudo leer dir. */
+ * conserva las fechas futuras y las anteriores a 2026-01-01 (filas sin hora
+ * valida; decision de Mateo). Devuelve cuantos borro, o -1 si no pudo leer dir. */
 int logger_retener(logger_t *lg, time_t ahora);
 
 #endif

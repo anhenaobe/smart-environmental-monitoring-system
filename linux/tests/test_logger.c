@@ -274,10 +274,12 @@ static void pu09_hora_no_valida_y_reloj_hacia_atras(void **state) {
     linea(buf, 1, l, sizeof(l));
     assert_string_equal(l, "120,0,1,20.00,20.00,20.00,40.00,40.00,40.00");
 
-    /* NTP adelanta el reloj: el archivo de 1970 queda fuera de la retencion
-     * y se borra con el primer tick del dia nuevo. */
+    /* NTP adelanta el reloj: el archivo de 1970 se conserva (decision de
+     * Mateo: las filas sin hora valida no se borran por retencion). */
     logger_muestra(&lg, T0 + 30, &e);
-    assert_false(existe("1970-01-01.csv"));
+    assert_true(existe("1970-01-01.csv"));
+    assert_int_equal(logger_retener(&lg, T0 + 30), 0);
+    assert_true(existe("1970-01-01.csv"));
 
     /* El reloj retrocede 10 min: se cierra el intervalo en curso y se abre
      * otro en la hora nueva. */
@@ -384,6 +386,8 @@ static void pu11_retencion_exacta_al_cambiar_de_dia(void **state) {
     escribir("2026-13-01.csv", "x");
     escribir("2026-11-1.csv", "x");
     escribir("2027-01-01.csv", "x");
+    escribir("1970-01-01.csv", "x");   /* sin hora valida: se conserva */
+    escribir("2025-12-31.csv", "x");
 
     /* Hoy es 2026-12-04: quedan 11-28 .. 12-04 (7 dias). */
     assert_int_equal(logger_tick(&lg, T0 + 7 * DIA + 5), 0);
@@ -393,6 +397,8 @@ static void pu11_retencion_exacta_al_cambiar_de_dia(void **state) {
     assert_true(existe("2026-13-01.csv"));
     assert_true(existe("2026-11-1.csv"));
     assert_true(existe("2027-01-01.csv"));
+    assert_true(existe("1970-01-01.csv"));
+    assert_true(existe("2025-12-31.csv"));
 
     /* La retencion corre una vez por dia: 2026-11-28 sigue hasta medianoche. */
     assert_int_equal(logger_tick(&lg, T0 + 8 * DIA - 1), 0);

@@ -168,13 +168,17 @@ int logger_retener(logger_t *lg, time_t ahora) {
     struct tm tm;
     if (!fecha_local(ahora, &tm)) return -1;
     const int64_t primero_que_queda = dia_local(&tm) - ((int64_t)lg->retencion_dias - 1);
+    /* Los archivos con fecha anterior a 2026-01-01 tienen filas sin hora
+     * valida (hora_ok = 0): se conservan; los borra el factory reset. */
+    const int64_t primer_dia_valido = dias_desde_civil(2026, 1, 1);
     DIR *d = opendir(lg->dir);
     if (d == NULL) return -1;
     int borrados = 0;
     struct dirent *e;
     while ((e = readdir(d)) != NULL) {
         int64_t dia;
-        if (!nombre_csv(e->d_name, &dia) || dia >= primero_que_queda) continue;
+        if (!nombre_csv(e->d_name, &dia) || dia >= primero_que_queda || dia < primer_dia_valido)
+            continue;
         if (unlinkat(dirfd(d), e->d_name, 0) == 0) borrados++;
     }
     closedir(d);
