@@ -26,9 +26,49 @@ RESET_TARGET = tests/test_reset
 SERVICIO_SRC = src/servicio.c src/config.c src/alarm.c src/logger.c src/parser.c src/reset.c tests/test_servicio.c
 SERVICIO_TARGET = tests/test_servicio
 
-.PHONY: all clean check test valgrind test_parser test_config test_alarm test_logger test_uart test_reset test_servicio
+.PHONY: all host envmond-bin install integracion integracion-valgrind integracion-larga clean check test valgrind test_parser test_config test_alarm test_logger test_uart test_reset test_servicio
 
-all: uart_probe
+# Servicio envmond (Fase B). El mismo Makefile compila en el host x86
+# ("make host") y en la Duo S, o con CC=<compilador cruzado RISC-V>.
+ENVMOND_SRC = src/envmond.c src/servicio.c src/uart.c src/config.c src/alarm.c \
+              src/logger.c src/parser.c src/reset.c
+ENVMOND_HDR = src/servicio.h src/uart.h src/config.h src/alarm.h src/logger.h \
+              src/parser.h src/reset.h
+PREFIX ?= /usr
+DESTDIR ?=
+SYSTEMD_DIR ?= /lib/systemd/system
+
+all: uart_probe envmond
+
+envmond: $(ENVMOND_SRC) $(ENVMOND_HDR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -Isrc $(ENVMOND_SRC) $(LDFLAGS) $(LDLIBS) -lcrypt -o $@
+
+host: envmond
+
+# Instala solo archivos; los pasos de systemd estan en linux/README.md.
+install: envmond
+	install -D -m 0755 envmond $(DESTDIR)$(PREFIX)/bin/envmond
+	install -D -m 0644 systemd/envmond.service $(DESTDIR)$(SYSTEMD_DIR)/envmond.service
+	install -D -m 0644 systemd/envmond.sysusers $(DESTDIR)$(PREFIX)/lib/sysusers.d/envmond.conf
+	install -D -m 0644 systemd/envmond.tmpfiles $(DESTDIR)$(PREFIX)/lib/tmpfiles.d/envmond.conf
+
+# Integracion en el host con socat (reloj real, ~1 min).
+INTEG_BIN = tests/sim_stm32 tests/crear_config
+tests/sim_stm32: tests/sim_stm32.c
+	$(CC) $(TEST_CFLAGS) tests/sim_stm32.c -o $@
+
+tests/crear_config: tests/crear_config.c src/config.c src/config.h
+	$(CC) $(TEST_CFLAGS) tests/crear_config.c src/config.c -o $@ -lcrypt
+
+integracion: envmond $(INTEG_BIN)
+	sh tests/integracion.sh corta
+
+integracion-valgrind: envmond $(INTEG_BIN)
+	VALGRIND=1 sh tests/integracion.sh corta
+
+# PI-11: 30 min bajo Valgrind (DURACION en segundos).
+integracion-larga: envmond $(INTEG_BIN)
+	VALGRIND=1 DURACION=$(or $(DURACION),1800) sh tests/integracion.sh larga
 
 uart_probe: uart_probe.c ../firmware/src/env_protocol.c ../firmware/include/env_protocol.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) -I../firmware/include uart_probe.c ../firmware/src/env_protocol.c $(LDFLAGS) $(LDLIBS) -o $@
@@ -95,4 +135,4 @@ valgrind: $(TEST_TARGET) $(PARSER_TARGET) $(CONFIG_TARGET) $(ALARM_TARGET) $(LOG
 	valgrind --leak-check=full --error-exitcode=1 ./$(SERVICIO_TARGET)
 
 clean:
-	rm -f uart_probe $(TEST_TARGET) $(PARSER_TARGET) $(CONFIG_TARGET) $(ALARM_TARGET) $(LOGGER_TARGET) $(UART_TARGET) $(RESET_TARGET) $(SERVICIO_TARGET)
+	rm -f uart_probe envmond $(INTEG_BIN) $(TEST_TARGET) $(PARSER_TARGET) $(CONFIG_TARGET) $(ALARM_TARGET) $(LOGGER_TARGET) $(UART_TARGET) $(RESET_TARGET) $(SERVICIO_TARGET)

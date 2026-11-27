@@ -8,6 +8,9 @@ build/
 *.map
 linux/envmon
 linux/envmon-host
+linux/envmond
+linux/tests/sim_stm32
+linux/tests/crear_config
 
 # STM32CubeIDE
 firmware/**/Debug/
